@@ -1,0 +1,72 @@
+name: Product Sync
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "*/10 * * * *"
+
+concurrency:
+  group: product-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      PYTHONPATH: .
+      # Real-source execution. Credentials are read from GitHub Actions Secrets.
+      EWAYS_ENABLED: "true"
+      HAMRAHTEL_ENABLED: "true"
+      EWAYS_USERNAME: ${{ secrets.EWAYS_USERNAME }}
+      EWAYS_PASSWORD: ${{ secrets.EWAYS_PASSWORD }}
+      SELECTED_IDS_STRING: ${{ vars.SELECTED_IDS_STRING }}
+      EWAYS_VERIFY_SSL: "false"
+      EWAYS_MAX_PAGES: "50"
+      SCRAPE_ATTEMPTS: "3"
+      PAGE_TIMEOUT_MS: "90000"
+      MAX_SCROLLS: "20"
+      LEGACY_SKIP_ITEMS: "25"
+      JSON_DESTINATION_ENABLED: "true"
+      OUTPUT_JSON: data/output.json
+      TELEGRAM_ENABLED: "true"
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      DRY_RUN: "false"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Install Python dependencies
+        run: python -m pip install -r requirements.txt
+
+      - name: Install Playwright Chromium
+        run: python -m playwright install --with-deps chromium
+
+      - name: Validate required Eways credentials
+        shell: bash
+        run: |
+          test -n "$EWAYS_USERNAME" || { echo "Missing GitHub Actions secret: EWAYS_USERNAME"; exit 1; }
+          test -n "$EWAYS_PASSWORD" || { echo "Missing GitHub Actions secret: EWAYS_PASSWORD"; exit 1; }
+
+      - name: Run unit tests
+        run: python -m pytest -q
+
+      - name: Run REAL Eways + Hamrahtel sync
+        run: python main.py
+
+      - name: Upload sync output
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: product-sync-output
+          path: data/output.json
+          if-no-files-found: warn
+          retention-days: 7
