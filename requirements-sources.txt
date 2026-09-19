@@ -1,0 +1,6 @@
+# Extra packages needed only by the real Eways / Hamrahtel plugins
+playwright>=1.45        # then run: playwright install chromium
+tqdm>=4.66
+tenacity>=8.2
+certifi
+# optional (only if EWAYS_USE_CLOUDSCRAPER=true): cloudscraper

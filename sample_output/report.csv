@@ -1,0 +1,7 @@
+﻿product_id,model,variant,winner_source,winner_price_toman,winner_url,runner_up_source,runner_up_price_toman,savings_toman,savings_percent,offers_total,offers_valid,needs_review,warnings
+iphone17-256,iPhone 17,black,shop_a,64900000,https://shop-a.example/product/a2,shop_b,64950000,50000,0.08,3,3,False,
+iphone17-256,iPhone 17,blue,shop_b,64100000,https://shop-b.example/p/b1,shop_c,64200000,100000,0.16,3,3,False,
+iphone17pro-256,iPhone 17 Pro,silver,shop_b,89100000,https://shop-b.example/p/b3,shop_a,89900000,800000,0.89,3,3,False,
+galaxy-a17-4g-128,Galaxy A17 4G,black,shop_b,9750000,https://shop-b.example/p/b4,shop_a,9800000,50000,0.51,3,3,False,
+redmi-note-14-256-8,Redmi Note 14,black,shop_b,13650000,https://shop-b.example/p/b5,shop_c,13800000,150000,1.09,3,2,False,
+redmi-note-14-256-8,Redmi Note 14,gray,shop_b,13700000,https://shop-b.example/p/b6,shop_a,13900000,200000,1.44,3,3,False,1 قیمت پرت نسبت به میانه حذف شد

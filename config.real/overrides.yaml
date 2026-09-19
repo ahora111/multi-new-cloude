@@ -1,0 +1,3 @@
+# Manual corrections always beat the algorithm.
+force_match: []      # - {source: shop_a, source_offer_id: "a99", watch_id: iphone17-256}
+force_split: []      # - {source: shop_b, source_offer_id: "b7"}

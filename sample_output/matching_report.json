@@ -1,0 +1,255 @@
+[
+  {
+    "source": "shop_a",
+    "offer_id": "a1",
+    "title": "گوشی موبایل اپل مدل iPhone 17 ظرفیت 256 گیگابایت - آبی",
+    "watch_id": "iphone17-256",
+    "status": "AUTO_MATCH",
+    "score": 100.0,
+    "reasons": [
+      "all hard constraints passed"
+    ]
+  },
+  {
+    "source": "shop_a",
+    "offer_id": "a2",
+    "title": "Apple iPhone 17 256GB Black CH/A",
+    "watch_id": "iphone17-256",
+    "status": "AUTO_MATCH",
+    "score": 100.0,
+    "reasons": [
+      "all hard constraints passed"
+    ]
+  },
+  {
+    "source": "shop_a",
+    "offer_id": "a3",
+    "title": "Apple iPhone 17 Pro 256GB Silver CH/A",
+    "watch_id": "iphone17pro-256",
+    "status": "AUTO_MATCH",
+    "score": 100.0,
+    "reasons": [
+      "all hard constraints passed"
+    ]
+  },
+  {
+    "source": "shop_a",
+    "offer_id": "a4",
+    "title": "Apple iPhone 17 Pro Max 256GB Silver",
+    "watch_id": null,
+    "status": "NO_MATCH",
+    "score": 0.0,
+    "reasons": [
+      "nearest=iphone17-256: model tier differs (offer=['max', 'pro'] watch=-)"
+    ]
+  },
+  {
+    "source": "shop_a",
+    "offer_id": "a5",
+    "title": "Apple iPhone 17e 256GB Black",
+    "watch_id": null,
+    "status": "NO_MATCH",
+    "score": 0.0,
+    "reasons": [
+      "nearest=iphone17-256: model number differs (iphone 17e vs iphone 17)"
+    ]
+  },
+  {
+    "source": "shop_a",
+    "offer_id": "a6",
+    "title": "Samsung Galaxy A17 4G 128GB RAM 4GB مشکی",
+    "watch_id": "galaxy-a17-4g-128",
+    "status": "AUTO_MATCH",
+    "score": 100.0,
+    "reasons": [
+      "all hard constraints passed"
+    ]
+  },
+  {
+    "source": "shop_a",
+    "offer_id": "a7",
+    "title": "Samsung Galaxy A17 5G 128GB RAM 4GB Black",
+    "watch_id": null,
+    "status": "NO_MATCH",
+    "score": 0.0,
+    "reasons": [
+      "nearest=galaxy-a17-4g-128: network differs (5g != 4g)"
+    ]
+  },
+  {
+    "source": "shop_a",
+    "offer_id": "a8",
+    "title": "Redmi Note 14 256GB RAM 8GB Black",
+    "watch_id": "redmi-note-14-256-8",
+    "status": "AUTO_MATCH",
+    "score": 100.0,
+    "reasons": [
+      "all hard constraints passed"
+    ]
+  },
+  {
+    "source": "shop_a",
+    "offer_id": "a9",
+    "title": "Redmi Note 14 Pro 256GB RAM 8GB Black",
+    "watch_id": null,
+    "status": "NO_MATCH",
+    "score": 0.0,
+    "reasons": [
+      "nearest=redmi-note-14-256-8: model tier differs (offer=['pro'] watch=-)"
+    ]
+  },
+  {
+    "source": "shop_a",
+    "offer_id": "a10",
+    "title": "Redmi Note 14 256GB RAM 8GB Gray",
+    "watch_id": "redmi-note-14-256-8",
+    "status": "AUTO_MATCH",
+    "score": 100.0,
+    "reasons": [
+      "all hard constraints passed"
+    ]
+  },
+  {
+    "source": "shop_b",
+    "offer_id": "b1",
+    "title": "آیفون 17 256 گیگ آبی",
+    "watch_id": "iphone17-256",
+    "status": "AUTO_MATCH",
+    "score": 100.0,
+    "reasons": [
+      "all hard constraints passed"
+    ]
+  },
+  {
+    "source": "shop_b",
+    "offer_id": "b2",
+    "title": "آیفون 17 256 گیگ مشکی",
+    "watch_id": "iphone17-256",
+    "status": "AUTO_MATCH",
+    "score": 100.0,
+    "reasons": [
+      "all hard constraints passed"
+    ]
+  },
+  {
+    "source": "shop_b",
+    "offer_id": "b3",
+    "title": "Apple iPhone 17 Pro 256GB Silver",
+    "watch_id": "iphone17pro-256",
+    "status": "AUTO_MATCH",
+    "score": 100.0,
+    "reasons": [
+      "all hard constraints passed"
+    ]
+  },
+  {
+    "source": "shop_b",
+    "offer_id": "b4",
+    "title": "گوشی سامسونگ گلکسی A17 (RAM 4) ظرفیت 128 گیگ 4G مشکی",
+    "watch_id": "galaxy-a17-4g-128",
+    "status": "AUTO_MATCH",
+    "score": 100.0,
+    "reasons": [
+      "all hard constraints passed"
+    ]
+  },
+  {
+    "source": "shop_b",
+    "offer_id": "b5",
+    "title": "Xiaomi Redmi Note 14 256GB RAM 8GB مشکی",
+    "watch_id": "redmi-note-14-256-8",
+    "status": "AUTO_MATCH",
+    "score": 100.0,
+    "reasons": [
+      "all hard constraints passed"
+    ]
+  },
+  {
+    "source": "shop_b",
+    "offer_id": "b6",
+    "title": "Xiaomi Redmi Note 14 256GB RAM 8GB خاکستری",
+    "watch_id": "redmi-note-14-256-8",
+    "status": "AUTO_MATCH",
+    "score": 100.0,
+    "reasons": [
+      "all hard constraints passed"
+    ]
+  },
+  {
+    "source": "shop_b",
+    "offer_id": "b7",
+    "title": "Apple iPhone 17 Air 256GB Blue",
+    "watch_id": null,
+    "status": "NO_MATCH",
+    "score": 0.0,
+    "reasons": [
+      "nearest=iphone17-256: model tier differs (offer=['air'] watch=-)"
+    ]
+  },
+  {
+    "source": "shop_c",
+    "offer_id": "c1",
+    "title": "iPhone 17 256GB Blue",
+    "watch_id": "iphone17-256",
+    "status": "AUTO_MATCH",
+    "score": 100.0,
+    "reasons": [
+      "all hard constraints passed"
+    ]
+  },
+  {
+    "source": "shop_c",
+    "offer_id": "c2",
+    "title": "iPhone 17 256GB Black",
+    "watch_id": "iphone17-256",
+    "status": "AUTO_MATCH",
+    "score": 100.0,
+    "reasons": [
+      "all hard constraints passed"
+    ]
+  },
+  {
+    "source": "shop_c",
+    "offer_id": "c3",
+    "title": "iPhone 17 Pro 256GB Silver",
+    "watch_id": "iphone17pro-256",
+    "status": "AUTO_MATCH",
+    "score": 100.0,
+    "reasons": [
+      "all hard constraints passed"
+    ]
+  },
+  {
+    "source": "shop_c",
+    "offer_id": "c4",
+    "title": "Galaxy A17 4G 128GB RAM 4GB Black",
+    "watch_id": "galaxy-a17-4g-128",
+    "status": "AUTO_MATCH",
+    "score": 100.0,
+    "reasons": [
+      "all hard constraints passed"
+    ]
+  },
+  {
+    "source": "shop_c",
+    "offer_id": "c5",
+    "title": "Redmi Note 14 256GB RAM 8GB Black",
+    "watch_id": "redmi-note-14-256-8",
+    "status": "AUTO_MATCH",
+    "score": 100.0,
+    "reasons": [
+      "all hard constraints passed"
+    ]
+  },
+  {
+    "source": "shop_c",
+    "offer_id": "c6",
+    "title": "Redmi Note 14 256GB RAM 8GB Gray",
+    "watch_id": "redmi-note-14-256-8",
+    "status": "AUTO_MATCH",
+    "score": 100.0,
+    "reasons": [
+      "all hard constraints passed"
+    ]
+  }
+]

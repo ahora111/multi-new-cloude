@@ -1,0 +1,110 @@
+from __future__ import annotations
+import argparse
+import json
+import logging
+import os
+import sys
+from pathlib import Path
+from .runner import run, EXIT_OK
+
+
+def load_dotenv(path=".env") -> int:
+    """Minimal .env reader (KEY=VALUE). Existing environment variables always win. Values are never logged."""
+    p = Path(path)
+    if not p.exists():
+        return 0
+    n = 0
+    for line in p.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        k, _, v = line.partition("=")
+        k, v = k.strip(), v.strip().strip('"').strip("'")
+        if k and v and k not in os.environ:
+            os.environ[k] = v
+            n += 1
+    return n
+
+
+def _print_summary(res):
+    s = res.summary
+    if not s:
+        return
+    keys = ["sources_ok", "sources_failed", "sources_degraded", "offers_total", "products_total",
+            "products_found", "products_not_found", "review_items", "suspect_offers", "needs_review_variants"]
+    print("\n".join(f"{k}: {s[k]}" for k in keys if k in s))
+    for st in s.get("sources", []):
+        print(f"  - {st['name']}: {st['status']} ({st['count']} offers, {st['seconds']}s)" +
+              (f" — {st['error']}" if st.get("error") else ""))
+
+
+def main(argv=None) -> int:
+    ap = argparse.ArgumentParser(prog="pricecompare", description="Multi-source price comparison")
+    ap.add_argument("--config-dir", default="config")
+    ap.add_argument("--base-dir", default=".", help="base for relative source paths")
+    ap.add_argument("--log-level", default="INFO")
+    sub = ap.add_subparsers(dest="cmd", required=True)
+    r = sub.add_parser("run", help="fetch, match, price, write outputs")
+    r.add_argument("--dry-run", action="store_true", help="do everything but write files / send messages")
+    r.add_argument("--only-source")
+    r.add_argument("--require-all-sources", action="store_true")
+    r.add_argument("--output-dir")
+    sub.add_parser("check-sources", help="fetch every source and report health")
+    m = sub.add_parser("match-report", help="show how offers were matched/rejected in the last run")
+    m.add_argument("--status", choices=["AUTO_MATCH", "REVIEW", "NO_MATCH", "FORCED_SPLIT"])
+    m.add_argument("--output-dir", default=None)
+    e = sub.add_parser("explain", help="explain the last result for a watchlist product id")
+    e.add_argument("product_id")
+    e.add_argument("--output-dir", default=None)
+    a = ap.parse_args(argv)
+    load_dotenv()
+    logging.basicConfig(level=a.log_level.upper(), format="%(asctime)s | %(levelname)s | %(name)s | %(message)s")
+
+    if a.cmd == "run":
+        res = run(a.config_dir, a.output_dir, a.dry_run, a.only_source, a.require_all_sources, a.base_dir)
+        _print_summary(res)
+        if res.exit_code != EXIT_OK:
+            print(res.message, file=sys.stderr)
+        return res.exit_code
+    if a.cmd == "check-sources":
+        res = run(a.config_dir, dry_run=True, base_dir=a.base_dir)
+        _print_summary(res)
+        return 0 if res.summary.get("sources_failed", 1) == 0 and res.summary.get("sources_degraded", 1) == 0 else 1
+    from .config import load_settings, ConfigError
+    try:
+        outdir = Path(a.output_dir or load_settings(a.config_dir).output_dir)
+    except ConfigError as exc:
+        print(f"config error: {exc}", file=sys.stderr); return 4
+    if a.cmd == "match-report":
+        rows = json.loads((outdir / "matching_report.json").read_text(encoding="utf-8"))
+        for r_ in rows:
+            if a.status and r_["status"] != a.status:
+                continue
+            print(f"[{r_['status']:<12}] {r_['score']:>6}  {r_['source']}: {r_['title']}\n"
+                  f"     -> {r_['watch_id'] or '-'} | {'; '.join(r_['reasons'])}")
+        return 0
+    if a.cmd == "explain":
+        doc = json.loads((outdir / "output.json").read_text(encoding="utf-8"))
+        prod = next((p for p in doc["products"] if p["id"] == a.product_id), None)
+        if not prod:
+            print(f"unknown product id {a.product_id!r}", file=sys.stderr); return 1
+        print(f"{prod['model']} — status: {prod['status']}")
+        for v in prod["variants"]:
+            print(f"\n[{v['variant']}] {v['why']}")
+            for o in v["offers"]:
+                flag = "VALID " if o["valid"] and not o["suspect"] else ("SUSPECT" if o["suspect"] else "EXCL  ")
+                print(f"   {flag} {o['source']:<12} {o['price_toman'] or 0:>14,.0f}  {o['excluded_reason'] or ''}  | {o['title']}")
+            for w in v["warnings"]:
+                print(f"   ! {w}")
+        rows = json.loads((outdir / "matching_report.json").read_text(encoding="utf-8"))
+        near = [r_ for r_ in rows if r_["status"] == "NO_MATCH" and prod["id"] in " ".join(r_["reasons"])]
+        if near:
+            print("\nNearest rejected offers:")
+            for r_ in near[:10]:
+                print(f"   {r_['source']}: {r_['title']}  -> {'; '.join(r_['reasons'])}")
+        return 0
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

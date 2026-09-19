@@ -1,0 +1,22 @@
+# REAL sources. Run with:  python -m pricecompare --config-dir config.real run --dry-run
+sources:
+  - name: eways
+    type: eways
+    currency_unit: rial            # Eways lists RIAL; converted to toman exactly once by the pipeline
+    priority: 10                   # lower wins price ties
+    min_expected_products: 20
+    username_env: EWAYS_USERNAME
+    password_env: EWAYS_PASSWORD
+    selected_ids: "16777:all-allz" # category selection string from the original project
+    max_pages: 50
+    details: candidates            # fetch spec pages only for products that could match the watchlist
+  - name: hamrahtel
+    type: hamrahtel
+    currency_unit: toman
+    priority: 20
+    min_expected_products: 20
+    categories: [mobile]
+    page_timeout_ms: 90000
+    scrape_attempts: 3
+    max_scrolls: 20
+    legacy_skip_items: 25
