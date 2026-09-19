@@ -3,6 +3,7 @@ import argparse
 import json
 import logging
 import os
+import re
 import sys
 from pathlib import Path
 from .runner import run, EXIT_OK
@@ -26,7 +27,7 @@ def load_dotenv(path=".env") -> int:
     return n
 
 
-def _print_summary(res):
+def _print_summary(res, show_offers=0, print_report=False):
     s = res.summary
     if not s:
         return
@@ -34,8 +35,45 @@ def _print_summary(res):
             "products_found", "products_not_found", "review_items", "suspect_offers", "needs_review_variants"]
     print("\n".join(f"{k}: {s[k]}" for k in keys if k in s))
     for st in s.get("sources", []):
-        print(f"  - {st['name']}: {st['status']} ({st['count']} offers, {st['seconds']}s)" +
+        cat = f", catalog={st['catalog_count']}" if "catalog_count" in st else ""
+        print(f"  - {st['name']}: {st['status']} ({st['count']} relevant offers{cat}, {st['seconds']}s)" +
               (f" — {st['error']}" if st.get("error") else ""))
+    if "telegram" in s:
+        print(f"telegram: {s['telegram']}")
+    if res.doc:
+        print("\nresults:")
+        for p in res.doc["products"]:
+            if p["status"] == "not_found":
+                print(f"  ✗ {p['id']}: not found in any source")
+                continue
+            for v in p["variants"]:
+                w = v["winner"]
+                print(f"  {'✓' if w else '✗'} {p['id']} [{v['variant']}]: " +
+                      (f"{w['source']} {w['price_toman']:,.0f}" if w else v["why"]) +
+                      ("  ⚠ review" if v["needs_review"] else ""))
+    if res.match_report:
+        from collections import Counter
+        st = Counter(r["status"] for r in res.match_report)
+        print("\nmatching: " + " | ".join(f"{k}={v}" for k, v in sorted(st.items())))
+        why = Counter(re.sub(r"\(.*?\)|[0-9.]+", "", re.sub(r"^nearest=\S+:\s*", "", r["reasons"][0])).strip()[:60]
+                      for r in res.match_report if r["status"] == "NO_MATCH" and r["reasons"])
+        if why:
+            print("top rejection reasons: " + "; ".join(f"{k} ×{n}" for k, n in why.most_common(5)))
+    if show_offers and res.offers:
+        from .matcher import best_result
+        print(f"\nsample offers per source (closest to your watchlist first, {show_offers} each):")
+        for src in sorted({o.source for o in res.offers}):
+            rows = [(best_result(o, res.watchlist, res.watch_attrs, res.settings), o) for o in res.offers if o.source == src]
+            rows.sort(key=lambda ro: ({"AUTO_MATCH": 2, "REVIEW": 1, "NO_MATCH": 0}[ro[0].status],
+                                       len(set(res.watch_attrs[ro[0].watch_id].core) & set(ro[1].model_core)), ro[0].score), reverse=True)
+            print(f"--- {src}")
+            for r_, o in rows[:show_offers]:
+                print(f"  {o.raw_title[:70]!r} price={o.price_toman and int(o.price_toman):,} | brand={o.brand or '?'} core={' '.join(o.model_core)} "
+                      f"tiers={o.tiers} {o.storage_gb}GB ram={o.ram_gb} color={o.color or '?'}\n"
+                      f"      -> {r_.watch_id}: {r_.status} ({'; '.join(r_.reasons)})")
+    if print_report and res.doc:
+        from .report import build_markdown
+        print("\n" + build_markdown(res.doc))
 
 
 def main(argv=None) -> int:
@@ -49,6 +87,9 @@ def main(argv=None) -> int:
     r.add_argument("--only-source")
     r.add_argument("--require-all-sources", action="store_true")
     r.add_argument("--output-dir")
+    r.add_argument("--no-telegram", action="store_true", help="never send Telegram messages in this run")
+    r.add_argument("--show-offers", type=int, default=0, metavar="N", help="print N sample offers per source with how they matched")
+    r.add_argument("--print-report", action="store_true", help="print the Persian report to the console/log")
     sub.add_parser("check-sources", help="fetch every source and report health")
     m = sub.add_parser("match-report", help="show how offers were matched/rejected in the last run")
     m.add_argument("--status", choices=["AUTO_MATCH", "REVIEW", "NO_MATCH", "FORCED_SPLIT"])
@@ -61,8 +102,9 @@ def main(argv=None) -> int:
     logging.basicConfig(level=a.log_level.upper(), format="%(asctime)s | %(levelname)s | %(name)s | %(message)s")
 
     if a.cmd == "run":
-        res = run(a.config_dir, a.output_dir, a.dry_run, a.only_source, a.require_all_sources, a.base_dir)
-        _print_summary(res)
+        res = run(a.config_dir, a.output_dir, a.dry_run, a.only_source, a.require_all_sources, a.base_dir,
+                  send_telegram=not a.no_telegram)
+        _print_summary(res, a.show_offers, a.print_report)
         if res.exit_code != EXIT_OK:
             print(res.message, file=sys.stderr)
         return res.exit_code

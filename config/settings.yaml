@@ -12,3 +12,4 @@ cache_ttl_seconds: 300
 lock_file: data/run.lock
 telegram_enabled: false
 telegram_dry_run: true
+telegram_only_on_change: true

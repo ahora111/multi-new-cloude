@@ -1,9 +1,15 @@
 name: price-compare
 on:
   workflow_dispatch:
+    inputs:
+      send_telegram:
+        description: "Send the Telegram message for this manual run?"
+        type: boolean
+        default: true
   schedule:
     - cron: "0 */3 * * *"        # every 3 hours; keep polite towards the shops
 concurrency: { group: price-compare, cancel-in-progress: false }   # never two runs at once
+permissions: { contents: read }
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -22,11 +28,22 @@ jobs:
         with: { python-version: "3.12", cache: pip }
       - run: pip install -r requirements.txt -r requirements-sources.txt
       - run: playwright install --with-deps chromium
-      # remove --dry-run once you have verified prices manually (docs/GO_LIVE_FA.md)
-      - run: python -m pricecompare --config-dir config.real run --dry-run
+      # keeps history.jsonl between runs, otherwise "send only when something changed" could never work
+      - uses: actions/cache@v4
+        with:
+          path: data/real
+          key: price-state-${{ github.run_id }}
+          restore-keys: price-state-
+      - name: Compare prices (and send Telegram if enabled in config.real/settings.yaml)
+        run: >
+          python -m pricecompare --config-dir config.real run --print-report --show-offers 12
+          ${{ (github.event_name == 'workflow_dispatch' && inputs.send_telegram == false) && '--no-telegram' || '' }}
         env:
           EWAYS_USERNAME: ${{ secrets.EWAYS_USERNAME }}
           EWAYS_PASSWORD: ${{ secrets.EWAYS_PASSWORD }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          # EWAYS_VERIFY_SSL: "true"    # the original scraper disables TLS verification by default; try enabling it
       - uses: actions/upload-artifact@v4
         if: always()
         with: { name: price-output, path: data/real/out, if-no-files-found: ignore }

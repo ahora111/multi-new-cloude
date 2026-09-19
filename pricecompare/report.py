@@ -91,3 +91,34 @@ def write_all(outdir, doc, matching_report, run_summary):
     atomic_write(out / "report.md", build_markdown(doc))
     atomic_write(out / "matching_report.json", json.dumps(matching_report, ensure_ascii=False, indent=2))
     atomic_write(out / "run_summary.json", json.dumps(run_summary, ensure_ascii=False, indent=2))
+
+
+def build_telegram(doc) -> str:
+    """Compact plain text (no Markdown symbols, Telegram shows them literally)."""
+    L = [f"📊 مقایسه قیمت — {doc['generated_at'][:16].replace('T', ' ')} UTC"]
+    bad = [x for x in doc["sources"] if x["status"] != "ok"]
+    L.append("منابع: " + " | ".join(f"{x['name']} {'✅' if x['status'] == 'ok' else '⚠️'}" for x in doc["sources"]))
+    for x in bad:
+        L.append(f"⚠️ {x['name']}: {x['error']}")
+    L.append("")
+    for p in doc["products"]:
+        if p["status"] == "not_found":
+            continue
+        L.append(f"📱 {p['model']}" + (f" {p['storage_gb']}GB" if p["storage_gb"] else ""))
+        for v in p["variants"]:
+            w, r = v["winner"], v["runner_up"]
+            if not w:
+                L.append(f"🔹 {v['variant']}: بدون پیشنهاد معتبر")
+                continue
+            flag = " ⚠️" if v["needs_review"] or v["warnings"] else ""
+            L.append(f"🔹 {v['variant']}: 🏆 {w['source']} {money(w['price_toman'])}{flag}")
+            if r:
+                L.append(f"   بعدی: {r['source']} {money(r['price_toman'])}")
+            L.append(f"   🔗 {w['url'] or 'بدون لینک'}")
+        L.append("")
+    if doc["not_found"]:
+        L.append("❌ پیدا نشد: " + "، ".join(doc["not_found"]))
+    extra = [w for w in doc["warnings"] if not w.startswith("منبع")]
+    if extra:
+        L += ["", "⚠️ هشدارها:"] + [f"- {w}" for w in extra[:8]]
+    return "\n".join(L).strip() + "\n"

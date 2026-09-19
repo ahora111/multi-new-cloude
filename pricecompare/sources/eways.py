@@ -75,6 +75,7 @@ class EwaysSource(Source):
             raise RuntimeError("All selected Eways categories failed")
 
         canonical = legacy.condense_products_to_leaf(rows, cats)
+        self.raw_count = len(canonical)
         keep = self.candidate_filter(watchlist)
         candidates = {pid: r for pid, r in canonical.items() if keep(r.get("name") or "")}
         if candidates and self.o.get("details", "candidates") == "candidates":

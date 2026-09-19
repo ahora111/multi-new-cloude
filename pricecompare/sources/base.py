@@ -24,6 +24,7 @@ class Source(ABC):
     def __init__(self, cfg, settings=None, http: HttpClient | None = None, base_dir: str = "."):
         self.cfg, self.name, self.o = cfg, cfg.name, cfg.options
         self.settings, self.base_dir = settings, base_dir
+        self.raw_count = None     # size of the whole catalog BEFORE watchlist filtering (used for the health check)
         self.http = http or HttpClient(
             rate_limit_per_sec=self.o.get("rate_limit_per_sec", 1.0), timeout=self.o.get("timeout", 20),
             retries=self.o.get("retries", 3), cache_dir=getattr(settings, "cache_dir", None),

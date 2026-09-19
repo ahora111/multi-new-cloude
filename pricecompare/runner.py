@@ -17,12 +17,20 @@ log = logging.getLogger("pricecompare")
 EXIT_OK, EXIT_ALL_FAILED, EXIT_REQUIRE_ALL, EXIT_CONFIG, EXIT_LOCKED = 0, 2, 3, 4, 5
 
 
+EXIT_TELEGRAM = 6
+
+
 @dataclass
 class RunResult:
     exit_code: int
     doc: dict = field(default_factory=dict)
     summary: dict = field(default_factory=dict)
     message: str = ""
+    offers: list = field(default_factory=list)
+    watchlist: list = field(default_factory=list)
+    watch_attrs: dict = field(default_factory=dict)
+    settings: object = None
+    match_report: list = field(default_factory=list)
 
 
 def enrich(off, ex: Extractor):
@@ -37,7 +45,7 @@ def enrich(off, ex: Extractor):
 
 
 def run(config_dir="config", output_dir=None, dry_run=False, only_source=None, require_all=False,
-        base_dir=".", http=None, now=None) -> RunResult:
+        base_dir=".", http=None, now=None, send_telegram=True) -> RunResult:
     try:
         settings = load_settings(config_dir)
         ex = Extractor(settings.dictionaries_file)
@@ -60,12 +68,13 @@ def run(config_dir="config", output_dir=None, dry_run=False, only_source=None, r
     try:
         with RunLock(settings.lock_file, settings.lock_stale_minutes):
             return _run_locked(settings, ex, watchlist, source_cfgs, overrides, outdir, dry_run, require_all,
-                               base_dir, http, now)
+                               base_dir, http, now, send_telegram)
     except LockError as exc:
         return RunResult(EXIT_LOCKED, message=str(exc))
 
 
-def _run_locked(settings, ex, watchlist, source_cfgs, overrides, outdir, dry_run, require_all, base_dir, http, now):
+def _run_locked(settings, ex, watchlist, source_cfgs, overrides, outdir, dry_run, require_all, base_dir, http, now,
+                send_telegram=True):
     offers, status, degraded = [], [], set()
     for cfg in source_cfgs:
         t0 = time.monotonic()
@@ -74,10 +83,12 @@ def _run_locked(settings, ex, watchlist, source_cfgs, overrides, outdir, dry_run
         try:
             src = build_source(cfg, settings, base_dir, http)
             got = src.fetch(watchlist)
-            st["count"] = len(got)
-            if len(got) < cfg.min_expected_products:
+            catalog = src.raw_count if src.raw_count is not None else len(got)
+            st["count"], st["catalog_count"] = len(got), catalog
+            # health = size of the WHOLE catalog we saw, not of the watchlist-filtered subset
+            if catalog < cfg.min_expected_products:
                 st["status"] = "degraded"
-                st["error"] = f"only {len(got)} products; expected >= {cfg.min_expected_products}"
+                st["error"] = f"only {catalog} products in catalog; expected >= {cfg.min_expected_products}"
                 if cfg.degraded_excluded:
                     degraded.add(cfg.name)
             offers.extend(got)
@@ -125,13 +136,34 @@ def _run_locked(settings, ex, watchlist, source_cfgs, overrides, outdir, dry_run
     doc = report.build_document(run_at, products, not_found, review_queue, status, warnings)
     doc["summary"] = summary
     run_summary = {"run_at": run_at, "summary": summary, "sources": status, "warnings": warnings}
+    exit_code, tg_status = EXIT_OK, "disabled (settings: telegram_enabled=false)"
+    current = {history.key(p["id"], v["variant"]): {"price": v["winner"]["price_toman"], "source": v["winner"]["source"]}
+               for p in products for v in p["variants"] if v["winner"]}
     if not dry_run:
         report.write_all(outdir, doc, match_report, run_summary)
+        if settings.telegram_enabled and not send_telegram:
+            tg_status = "skipped (--no-telegram)"
+        elif settings.telegram_enabled:
+            changed = current != prev
+            if settings.telegram_only_on_change and not changed and current:
+                tg_status = "unchanged since last run: not sent"
+            else:
+                tok, chat = os.environ.get("TELEGRAM_BOT_TOKEN"), os.environ.get("TELEGRAM_CHAT_ID")
+                if not (tok and chat):
+                    tg_status, exit_code = "FAILED: TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID are not set", EXIT_TELEGRAM
+                else:
+                    try:
+                        parts = telegram.send(tok, chat, report.build_telegram(doc), settings.telegram_max_message_len,
+                                              dry_run=settings.telegram_dry_run)
+                        tg_status = (f"dry-run: {len(parts)} message(s) NOT sent (telegram_dry_run=true)"
+                                     if settings.telegram_dry_run else f"sent {len(parts)} message(s)")
+                    except Exception as exc:               # never leak the bot token (it is inside the request URL)
+                        tg_status, exit_code = "FAILED: " + str(exc).replace(tok, "***"), EXIT_TELEGRAM
         history.append(settings.history_file, products, run_at)
-        if settings.telegram_enabled:
-            tok, chat = os.environ.get("TELEGRAM_BOT_TOKEN"), os.environ.get("TELEGRAM_CHAT_ID")
-            if not (tok and chat):
-                raise ConfigError("telegram_enabled but TELEGRAM_BOT_TOKEN/TELEGRAM_CHAT_ID are not set")
-            telegram.send(tok, chat, report.build_markdown(doc), settings.telegram_max_message_len,
-                          dry_run=settings.telegram_dry_run)
-    return RunResult(EXIT_OK, doc=doc, summary={**summary, "sources": status}, message="ok")
+    else:
+        tg_status = "dry-run: nothing written or sent"
+    summary["telegram"] = tg_status
+    doc["summary"] = summary
+    return RunResult(exit_code, doc=doc, summary={**summary, "sources": status}, message=tg_status if exit_code else "ok",
+                     offers=offers, watchlist=watchlist, watch_attrs=watch_attrs, settings=settings,
+                     match_report=match_report)

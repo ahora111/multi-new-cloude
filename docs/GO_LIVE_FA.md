@@ -43,13 +43,19 @@ python -m pricecompare --config-dir config.real explain iphone17-256           #
 3. قیمت یک محصول را با سایت Hamrahtel مقایسه کنید.
 4. در `match-report --status NO_MATCH` ببینید چیز درستی رد نشده باشد؛ اصلاح دستی در `config.real/overrides.yaml`.
 
-## ۷) اجرای زمان‌بندی‌شده (GitHub Actions)
-- در Settings → Secrets: `EWAYS_USERNAME` و `EWAYS_PASSWORD`.
-- workflow آماده است؛ مرحله‌ی «real» را وقتی مطمئن شدید از `--dry-run` درآورید.
-- ممکن است Eways به IP سرورهای GitHub سخت‌گیری کند؛ در آن صورت روی سیستم/سرور خودتان اجرا کنید (کد قدیمی از `EWAYS_PROXY` هم پشتیبانی می‌کرد).
+## ۷) تلگرام — سه چیز باید همزمان درست باشد
+اگر پیامی نیامد، معمولاً یکی از این سه مورد است (برنامه حالا در لاگ صریح می‌گوید کدام: خط `telegram: ...`):
+1. **تنظیمات:** در `config.real/settings.yaml` باید `telegram_enabled: true` و `telegram_dry_run: false` باشد.
+2. **اطلاعات ربات:** `TELEGRAM_BOT_TOKEN` (از @BotFather) و `TELEGRAM_CHAT_ID`.
+   - به ربات خودتان (یا گروه) یک پیام بدهید، سپس در مرورگر باز کنید: `https://api.telegram.org/bot<TOKEN>/getUpdates` و مقدار `chat.id` را بردارید (برای گروه معمولاً با `-` شروع می‌شود).
+   - روی GitHub: Settings → Secrets and variables → Actions → دو secret با همین نام‌ها بسازید. روی سیستم خودتان در `.env` بگذارید.
+3. **اجرای واقعی:** `--dry-run` هیچ‌چیز نمی‌نویسد و نمی‌فرستد. workflow حالا بدون `--dry-run` اجرا می‌شود.
 
-## ۸) تلگرام (اختیاری)
-در `config.real/settings.yaml`: `telegram_enabled: true` و `telegram_dry_run: false`، و در `.env`: `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`.
+رفتار پیش‌فرض: پیام فقط وقتی فرستاده می‌شود که برنده‌ی یکی از محصولات (منبع یا قیمت) نسبت به اجرای قبل عوض شده باشد (`telegram_only_on_change`). تاریخچه با `actions/cache` بین اجراها نگه داشته می‌شود.
+اجرای دستی روی GitHub: Run workflow → گزینه‌ی `send_telegram` را برای آزمایش خاموش کنید.
+
+## ۸) عیب‌یابی تطبیق
+اجرا با `--show-offers 12` برای هر منبع نمونه‌ی واقعی عنوان‌ها، ویژگی‌های استخراج‌شده و دلیل تطبیق/ردشدن را چاپ می‌کند (workflow هم همین را می‌زند). اگر محصولی «پیدا نشد» ولی در سایت هست، آن بخش لاگ را بفرستید.
 
 ## نکات
 - Eways پنل عمده‌فروشی با ورود است؛ از حساب خودتان و مطابق شرایط استفاده‌ی آن استفاده کنید. فاصله‌ی اجراها را کم نکنید (پیش‌فرض workflow: هر ۳ ساعت).

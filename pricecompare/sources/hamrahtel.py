@@ -44,6 +44,7 @@ class HamrahtelSource(Source):
             link = next(iter(scraper.CATEGORIES.values())) if len(scraper.CATEGORIES) == 1 else ""
         finally:
             scraper.CATEGORIES = original
+        self.raw_count = len(products)
         if not products:
             raise RuntimeError("Hamrahtel returned zero products (site unreachable, blocked, or page layout changed)")
         if not ok:

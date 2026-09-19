@@ -30,6 +30,7 @@ class Settings:
     dictionaries_file: Optional[str] = None
     telegram_enabled: bool = False
     telegram_dry_run: bool = True
+    telegram_only_on_change: bool = True     # send only when a winner (source/price) changed since the last run
     telegram_max_message_len: int = 2800
 
 
