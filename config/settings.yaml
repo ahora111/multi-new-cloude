@@ -1,0 +1,14 @@
+# Every key here is used by the code (unknown keys are rejected).
+match_auto_threshold: 95
+match_review_threshold: 85
+review_as_match: false
+max_price_age_minutes: 180
+outlier_ratio: 3.0
+history_alert_pct: 15
+output_dir: data/out
+history_file: data/history.jsonl
+cache_dir: data/cache
+cache_ttl_seconds: 300
+lock_file: data/run.lock
+telegram_enabled: false
+telegram_dry_run: true

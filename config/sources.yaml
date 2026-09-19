@@ -1,0 +1,29 @@
+# Add a source = add a block here (+ one file if it needs custom code, see docs/ADD_SOURCE.md).
+# currency_unit is the RAW unit of the site and is MANDATORY: toman | rial.
+sources:
+  - name: shop_a
+    type: json
+    currency_unit: toman
+    priority: 10                 # lower number wins price ties
+    min_expected_products: 5
+    path: fixtures/shop_a.json   # or: url: https://... (+ auth / rate_limit_per_sec / retries)
+    items_path: data.products
+    base_url: https://shop-a.example
+    fields: {id: id, title: name, price: price, stock: available, url: link, color: color, barcode: barcode}
+  - name: shop_b
+    type: html
+    currency_unit: rial          # this site shows RIAL; it is converted exactly once by the pipeline
+    priority: 20
+    min_expected_products: 5
+    path: fixtures/shop_b.html
+    base_url: https://shop-b.example
+    item_selector: div.p
+    out_of_stock_selector: .soldout
+    fields: {id: "@attr(data-id)", title: ".t", price: ".price", url: ".t::attr(href)"}
+  - name: shop_c
+    type: csv
+    currency_unit: toman
+    priority: 30
+    min_expected_products: 5
+    path: fixtures/shop_c.csv
+    columns: {id: sku, title: title, price: price, stock: stock, url: link}
