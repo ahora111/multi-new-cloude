@@ -76,7 +76,7 @@ def test_eways_missing_credentials_and_login_failure_have_clear_errors(monkeypat
     legacy = _mod(LEG)
     if not legacy:
         return
-    monkeypatch.delenv("EWAYS_USERNAME"); monkeypatch.delenv("EWAYS_PASSWORD")
+    monkeypatch.delenv("EWAYS_USERNAME", raising=False); monkeypatch.delenv("EWAYS_PASSWORD", raising=False)
     for cfg, text in ((_eways_cfg(), "credentials missing"),):
         try:
             build_source(cfg).fetch(WATCH)
