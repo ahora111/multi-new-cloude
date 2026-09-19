@@ -31,6 +31,7 @@ class RunResult:
     watch_attrs: dict = field(default_factory=dict)
     settings: object = None
     match_report: list = field(default_factory=list)
+    catalog_titles: dict = field(default_factory=dict)
 
 
 def enrich(off, ex: Extractor):
@@ -75,7 +76,7 @@ def run(config_dir="config", output_dir=None, dry_run=False, only_source=None, r
 
 def _run_locked(settings, ex, watchlist, source_cfgs, overrides, outdir, dry_run, require_all, base_dir, http, now,
                 send_telegram=True):
-    offers, status, degraded = [], [], set()
+    offers, status, degraded, catalogs = [], [], set(), {}
     for cfg in source_cfgs:
         t0 = time.monotonic()
         st = {"name": cfg.name, "status": "ok", "count": 0, "seconds": 0.0, "error": None,
@@ -85,6 +86,7 @@ def _run_locked(settings, ex, watchlist, source_cfgs, overrides, outdir, dry_run
             got = src.fetch(watchlist)
             catalog = src.raw_count if src.raw_count is not None else len(got)
             st["count"], st["catalog_count"] = len(got), catalog
+            catalogs[cfg.name] = list(src.catalog_titles) or [o.raw_title for o in got]
             # health = size of the WHOLE catalog we saw, not of the watchlist-filtered subset
             if catalog < cfg.min_expected_products:
                 st["status"] = "degraded"
@@ -166,4 +168,17 @@ def _run_locked(settings, ex, watchlist, source_cfgs, overrides, outdir, dry_run
     doc["summary"] = summary
     return RunResult(exit_code, doc=doc, summary={**summary, "sources": status}, message=tg_status if exit_code else "ok",
                      offers=offers, watchlist=watchlist, watch_attrs=watch_attrs, settings=settings,
-                     match_report=match_report)
+                     match_report=match_report, catalog_titles=catalogs)
+
+
+def closest_catalog_titles(watch, watch_attrs, titles, ex: Extractor, n=3):
+    """Catalog titles most similar to a watchlist product (helps to see why nothing matched: 'Note 15' vs 'Note 14')."""
+    want = set(watch_attrs.core)
+    scored = []
+    for t in dict.fromkeys(titles):
+        a = ex.parse(t)
+        overlap = len(want & set(a.core))
+        if overlap:
+            scored.append((overlap + (0.5 if a.brand == watch.brand else 0), t))
+    scored.sort(key=lambda x: -x[0])
+    return [t for _, t in scored[:n]]

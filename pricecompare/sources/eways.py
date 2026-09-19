@@ -76,6 +76,7 @@ class EwaysSource(Source):
 
         canonical = legacy.condense_products_to_leaf(rows, cats)
         self.raw_count = len(canonical)
+        self.catalog_titles = [str(r.get('name') or '') for r in canonical.values()][:3000]
         keep = self.candidate_filter(watchlist)
         candidates = {pid: r for pid, r in canonical.items() if keep(r.get("name") or "")}
         if candidates and self.o.get("details", "candidates") == "candidates":

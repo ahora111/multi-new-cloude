@@ -50,6 +50,7 @@ class HamrahtelSource(Source):
         if not ok:
             import logging
             logging.getLogger("pricecompare").warning("hamrahtel: at least one category failed after retries")
+        self.catalog_titles = [" ".join(x for x in (p.brand, p.model) if x) for p in products][:3000]
         seen, out = {}, []
         for p in products:
             base = f"{p.brand}|{p.model}|{p.color}"
@@ -60,3 +61,55 @@ class HamrahtelSource(Source):
                         "stock": "in_stock",          # the quick-checkout list only shows purchasable items
                         "url": link, "color": p.color, "brand": p.brand})
         return out
+
+
+def debug_lines(raw_lines, n=120, context=15):
+    """Numbered slice of the rendered page text around the first price line (to learn the real card layout)."""
+    scraper = _scraper()
+    first = next((i for i, x in enumerate(raw_lines) if scraper.is_price(x)), 0)
+    a = max(0, first - context)
+    return [f"{i:4d} | {x}" for i, x in enumerate(raw_lines[a:a + n], start=a)]
+
+
+def dump_page(category="mobile", lines=120, timeout_ms=90000, max_scrolls=20):
+    """Diagnostics: print what the site really renders (text lines + JSON responses that contain prices)."""
+    scraper = _scraper()
+    from playwright.sync_api import sync_playwright
+    url = scraper.CATEGORIES[category]
+    out, json_hits = [], []
+    with sync_playwright() as pw:
+        browser = pw.chromium.launch(headless=True)
+        page = browser.new_page()
+
+        def on_response(resp):
+            try:
+                if "json" in (resp.headers.get("content-type") or ""):
+                    body = resp.text()
+                    n = body.lower().count("price")
+                    if n:
+                        json_hits.append((n, len(body), resp.url[:140]))
+            except Exception:
+                pass
+        page.on("response", on_response)
+        page.goto(url, wait_until="domcontentloaded", timeout=timeout_ms)
+        page.wait_for_timeout(5000)
+        scraper.scroll_page(page, max_scrolls)
+        body = page.locator("body").inner_text(timeout=15000)
+        card_counts = {}
+        for sel in ('[data-testid*="product"]', '[class*="product-card"]', '[class*="ProductCard"]', '[class*="product-item"]'):
+            try:
+                card_counts[sel] = page.locator(sel).count()
+            except Exception:
+                card_counts[sel] = "error"
+        browser.close()
+    raw = [c for c in (scraper.clean_text(x) for x in body.splitlines()) if c]
+    out.append(f"URL: {url}")
+    out.append(f"non-empty text lines: {len(raw)} | price-like lines: {sum(scraper.is_price(x) for x in raw)}")
+    out.append(f"card selector counts: {card_counts}")
+    out.append("JSON responses containing 'price' (count, bytes, url): " + str(sorted(json_hits, reverse=True)[:6]))
+    out.append("--- rendered text around the first price line ---")
+    out += debug_lines(raw, lines)
+    parsed = scraper.parse_body_lines(raw)
+    out.append(f"--- parse_body_lines(): {len(parsed)} products; first 12 ---")
+    out += [f"   {p}" for p in parsed[:12]]
+    return "\n".join(out)

@@ -6,6 +6,10 @@ on:
         description: "Send the Telegram message for this manual run?"
         type: boolean
         default: true
+      debug_hamrahtel:
+        description: "Also print the raw Hamrahtel page text (to debug the parser)?"
+        type: boolean
+        default: false
   schedule:
     - cron: "0 */3 * * *"        # every 3 hours; keep polite towards the shops
 concurrency: { group: price-compare, cancel-in-progress: false }   # never two runs at once
@@ -34,6 +38,10 @@ jobs:
           path: data/real
           key: price-state-${{ github.run_id }}
           restore-keys: price-state-
+      - name: Debug Hamrahtel page layout
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.debug_hamrahtel }}
+        continue-on-error: true
+        run: python -m pricecompare debug-hamrahtel --lines 160
       - name: Compare prices (and send Telegram if enabled in config.real/settings.yaml)
         run: >
           python -m pricecompare --config-dir config.real run --print-report --show-offers 12

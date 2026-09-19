@@ -200,3 +200,23 @@ def test_cli_run_and_explain_and_match_report(tmp_path, capsys=None):
     assert main(["--config-dir", cfg, "--base-dir", base, "explain", "iphone17-256"]) == 0
     assert main(["--config-dir", cfg, "--base-dir", base, "explain", "nope"]) == 1
     assert main(["--config-dir", cfg, "--base-dir", base, "run", "--only-source", "zzz"]) == 4
+
+
+def test_closest_catalog_titles_helper():
+    from pricecompare.extract import Extractor
+    from pricecompare.models import WatchItem
+    from pricecompare.runner import closest_catalog_titles
+    ex = Extractor()
+    w = WatchItem(id="r", brand="xiaomi", model="Redmi Note 14")
+    near = closest_catalog_titles(w, ex.parse(w.model), ["Xiaomi Redmi Note 15 256GB", "Samsung Galaxy A17", "Redmi Note 14 Pro 128GB", "TV 55"], ex)
+    assert near[0] in ("Redmi Note 14 Pro 128GB",) and "Samsung Galaxy A17" not in near and "TV 55" not in near
+
+
+def test_show_offers_prints_closest_titles_for_missing_products(tmp_path, capsys=None):
+    import io, contextlib
+    cfg, base = make_project(tmp_path)
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        main(["--config-dir", cfg, "--base-dir", base, "run", "--dry-run", "--show-offers", "2"])
+    out = buf.getvalue()
+    assert "sample offers per source" in out and "closest catalog titles" in out and "pixel-10-pro-256 @" in out

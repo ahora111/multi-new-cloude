@@ -71,6 +71,18 @@ def _print_summary(res, show_offers=0, print_report=False):
                 print(f"  {o.raw_title[:70]!r} price={o.price_toman and int(o.price_toman):,} | brand={o.brand or '?'} core={' '.join(o.model_core)} "
                       f"tiers={o.tiers} {o.storage_gb}GB ram={o.ram_gb} color={o.color or '?'}\n"
                       f"      -> {r_.watch_id}: {r_.status} ({'; '.join(r_.reasons)})")
+    if show_offers and res.doc and res.catalog_titles:
+        from .extract import Extractor
+        from .runner import closest_catalog_titles
+        ex = Extractor(res.settings.dictionaries_file)
+        missing = [p["id"] for p in res.doc["products"] if p["status"] != "found"]
+        by_id = {w.id: w for w in res.watchlist}
+        if missing:
+            print("\nclosest catalog titles for products that were not priced:")
+        for pid in missing:
+            for src, titles in res.catalog_titles.items():
+                near = closest_catalog_titles(by_id[pid], res.watch_attrs[pid], titles, ex)
+                print(f"  {pid} @ {src}: " + (" | ".join(t[:70] for t in near) if near else "(nothing similar in this catalog)"))
     if print_report and res.doc:
         from .report import build_markdown
         print("\n" + build_markdown(res.doc))
@@ -91,6 +103,9 @@ def main(argv=None) -> int:
     r.add_argument("--show-offers", type=int, default=0, metavar="N", help="print N sample offers per source with how they matched")
     r.add_argument("--print-report", action="store_true", help="print the Persian report to the console/log")
     sub.add_parser("check-sources", help="fetch every source and report health")
+    d = sub.add_parser("debug-hamrahtel", help="print what Hamrahtel really renders (to fix the parser)")
+    d.add_argument("--category", default="mobile")
+    d.add_argument("--lines", type=int, default=120)
     m = sub.add_parser("match-report", help="show how offers were matched/rejected in the last run")
     m.add_argument("--status", choices=["AUTO_MATCH", "REVIEW", "NO_MATCH", "FORCED_SPLIT"])
     m.add_argument("--output-dir", default=None)
@@ -108,6 +123,10 @@ def main(argv=None) -> int:
         if res.exit_code != EXIT_OK:
             print(res.message, file=sys.stderr)
         return res.exit_code
+    if a.cmd == "debug-hamrahtel":
+        from .sources.hamrahtel import dump_page
+        print(dump_page(a.category, a.lines))
+        return 0
     if a.cmd == "check-sources":
         res = run(a.config_dir, dry_run=True, base_dir=a.base_dir)
         _print_summary(res)

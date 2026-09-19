@@ -201,40 +201,64 @@ def extract_network_products(responses) -> List[Product]:
     return dedupe_products(products)
 
 
-def extract_body_text_fallback(page) -> List[Product]:
-    """Last-resort parser for Hamrahtel DOM changes.
+def _is_color_label(x: str) -> bool:
+    """A short standalone colour label such as 'مشکی' or 'آبی روشن' (NOT a title that merely mentions a colour)."""
+    return bool(detect_color(x)) and not re.search(r'[A-Za-z]', x) and len(x.split()) <= 3
 
-    The site has changed product-card class names more than once. If no known
-    selector is present, parse the rendered body text around numeric price
-    lines instead of returning zero products.
+
+def _split_title(title: str):
+    parts = title.split()
+    brand = parts[0] if parts else ''
+    if brand not in VALID_BRANDS:
+        brand = ''
+    return brand, (title if not brand else ' '.join(parts[1:]))
+
+
+def parse_body_lines(raw_lines: List[str]) -> List[Product]:
+    """Pair every price line with its OWN title.
+
+    pricecompare fix: the original implementation cut a fixed window around each price and assigned ALL prices in
+    that window to the FIRST title of the window, so prices of the previous card were attached to the next card's
+    title (e.g. the RAM-6GB price shown under the RAM-4GB title). Here, for each price line we walk backwards:
+    prices/colour labels of the same card are skipped, the nearest colour label (before crossing another price) is
+    the variant colour, and the first remaining line is the card title.
     """
+    products = []
+    for i, line in enumerate(raw_lines):
+        if not is_price(line):
+            continue
+        color, crossed_price, title = '', False, ''
+        for j in range(i - 1, max(-1, i - 13), -1):
+            x = raw_lines[j]
+            if is_price(x):
+                crossed_price = True
+                continue
+            if _is_color_label(x):
+                if not color and not crossed_price:
+                    color = detect_color(x)
+                continue
+            if x == 'مشخصات کالا' or x.startswith('برند'):
+                continue
+            title = x
+            break
+        if not title:
+            continue
+        brand, model = _split_title(title)
+        products.append(Product(brand, model, line, color))
+    return dedupe_products(products)
+
+
+def extract_body_text_fallback(page) -> List[Product]:
+    """Last-resort parser for Hamrahtel DOM changes (renders body text, pairs prices with titles)."""
     try:
-        # IMPORTANT: do not call clean_text() on the complete body before
-        # splitlines(). clean_text() intentionally collapses whitespace,
-        # which would turn the whole page into one giant line and make the
-        # price/title parser unable to identify individual products.
+        # IMPORTANT: do not call clean_text() on the complete body before splitlines(): it collapses whitespace.
         body = page.locator("body").inner_text(timeout=10000)
     except Exception:
         return []
     if not body:
         return []
-    raw_lines = []
-    for raw_line in body.splitlines():
-        line = clean_text(raw_line)
-        if line:
-            raw_lines.append(line)
-    products = []
-    # Build small windows around every price line. parse_card_variants handles
-    # color -> price pairing and brand/model extraction.
-    for i, line in enumerate(raw_lines):
-        if not is_price(line):
-            continue
-        start = max(0, i - 12)
-        end = min(len(raw_lines), i + 3)
-        variants = parse_card_variants(raw_lines[start:end])
-        if variants:
-            products.extend(variants)
-    return dedupe_products(products)
+    raw_lines = [c for c in (clean_text(x) for x in body.splitlines()) if c]
+    return parse_body_lines(raw_lines)
 
 
 def extract_legacy(page, skip_items: int) -> List[Product]:

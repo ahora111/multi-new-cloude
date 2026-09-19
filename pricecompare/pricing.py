@@ -6,11 +6,11 @@ from statistics import median
 from .models import IN_STOCK
 
 
-def variant_parts(off, watch) -> dict:
+def variant_parts(off, watch, include=frozenset()) -> dict:
     parts = {"color": off.color}
-    if watch.storage_gb is None:
+    if "storage_gb" in include:
         parts["storage_gb"] = off.storage_gb
-    if watch.ram_gb is None:
+    if "ram_gb" in include:
         parts["ram_gb"] = off.ram_gb
     # region / activation are NOT part of the key: many shops omit them, which would split one
     # product into fake variants. Mixed known values are flagged instead (see build_product).
@@ -105,12 +105,18 @@ def choose_variant(offers, priorities, settings, now, degraded, max_price=None):
 
 def build_product(watch, matched, priorities, settings, now, degraded):
     """matched: list[(offer, MatchResult)] for this watch item."""
-    groups, ignored = {}, []
+    groups, ignored, kept = {}, [], []
     for off, _ in matched:
         if watch.colors != ["any"] and off.color not in watch.colors:
             ignored.append({"source": off.source, "offer_id": off.source_offer_id, "reason": "رنگ درخواست‌نشده"})
             continue
-        parts = variant_parts(off, watch)
+        kept.append(off)
+    # storage / RAM split variants only when the watchlist leaves them open AND offers really carry >= 2 different
+    # known values. (One shop stating RAM 8 while another omits it must NOT create two fake variants.)
+    include = frozenset(a for a in ("storage_gb", "ram_gb")
+                        if getattr(watch, a) is None and len({getattr(o, a) for o in kept if getattr(o, a) is not None}) >= 2)
+    for off in kept:
+        parts = variant_parts(off, watch, include)
         groups.setdefault(tuple(parts.items()), []).append(off)
     variants = []
     for key, offs in sorted(groups.items(), key=lambda kv: str(kv[0])):
