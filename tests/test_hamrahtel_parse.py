@@ -151,5 +151,5 @@ def test_real_layout_end_to_end_prices_only_the_right_rows(tmp_path, monkeypatch
     cfg, base = make_project(tmp_path, sources=[{"name": "hamrahtel", "type": "hamrahtel", "currency_unit": "toman", "strategy": "legacy"}], watchlist=wl)
     res = run(cfg, base_dir=base)
     by = {p["id"]: {v["variant"]: v["winner"]["price_toman"] for v in p["variants"] if v["winner"]} for p in res.doc["products"]}
-    assert by["a17"] == {"black": 47_299_000, "light blue": 47_199_000, "gray": 47_199_000}
+    assert by["a17"] == {"black": 47_299_000, "blue": 47_199_000, "gray": 47_199_000}          # "آبی روشن" == blue
     assert by["iphone16"] == {"black": 306_990_000}                                # Pro Max 1TB is a different product

@@ -27,5 +27,5 @@ def test_real_config_profile_is_valid():
     load_settings(cfg)
     srcs = load_sources(cfg)
     assert {s.name for s in srcs} == {"eways", "hamrahtel"} and {s.currency_unit for s in srcs} == {"rial", "toman"}
-    wl = load_watchlist(cfg, Extractor())
-    assert len(wl) >= 5 and {w.region for w in wl if w.region} == {"cha", "singapore"}
+    from pricecompare.config import load_discovery
+    assert load_discovery(cfg).enabled and load_watchlist(cfg, Extractor()) == []

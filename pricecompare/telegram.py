@@ -27,15 +27,23 @@ def split_message(text: str, limit: int) -> list:
     return chunks
 
 
-def send(token, chat_id, text, limit=2800, dry_run=True, session=None, sleep=time.sleep):
-    parts = split_message(text, limit)
+def send(token, chat_id, text, limit=2800, dry_run=True, session=None, sleep=time.sleep, max_messages=None):
+    """`text` may be one string (split by size, numbered) or a list of messages (each becomes >= 1 separate post)."""
+    numbered = isinstance(text, str)
+    parts = []
+    for t in ([text] if numbered else list(text)):
+        parts += split_message(t, limit)
+    if max_messages and len(parts) > max_messages:
+        dropped = len(parts) - max_messages + 1
+        parts = parts[:max_messages - 1] + [f"… {dropped} پیام دیگر به‌خاطر سقف telegram_max_messages ارسال نشد (گزارش کامل در فایل‌های خروجی)."]
     if dry_run:
         return parts
     s = session or requests.Session()
     url = f"https://api.telegram.org/bot{token}/sendMessage"
     for i, part in enumerate(parts, 1):
+        body = f"({i}/{len(parts)})\n{part}" if numbered and len(parts) > 1 else part
         for attempt in range(4):
-            r = s.post(url, json={"chat_id": chat_id, "text": f"({i}/{len(parts)})\n{part}"}, timeout=20)
+            r = s.post(url, json={"chat_id": chat_id, "text": body}, timeout=20)
             if r.status_code == 429:
                 try:
                     wait = int(r.json().get("parameters", {}).get("retry_after", 2))

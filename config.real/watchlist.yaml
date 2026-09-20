@@ -1,43 +1,13 @@
-# Products to track (examples taken from the REAL catalogs seen on 2026-09-20; replace with yours).
-# Only these are compared. A product that no source stocks is reported as "not found" (that is normal).
-# Tips: put the exact model line in `model` (Pro / Pro Max / Ultra / 5G are DIFFERENT products);
-#       set region (CH/A, ZA/A ...) and condition (active | non_active) for iPhones, RAM for Android phones.
-products:
-  - id: iphone17-256-cha
-    brand: apple
-    model: "iPhone 17"
-    storage: 256GB
-    region: "CH/A"
-    condition: non_active
-  - id: iphone17-promax-256-zaa
-    brand: apple
-    model: "iPhone 17 Pro Max"
-    storage: 256GB
-    region: "ZA/A"
-    condition: non_active
-  - id: iphone16-128-cha
-    brand: apple
-    model: "iPhone 16"
-    storage: 128GB
-    region: "CH/A"
-    condition: non_active
-  - id: redmi-a3-128-4
-    brand: xiaomi
-    model: "Redmi A3"
-    storage: 128GB
-    ram: 4
-  - id: galaxy-a17-128-6
-    brand: samsung
-    model: "Galaxy A17"
-    storage: 128GB
-    ram: 6
-  - id: galaxy-a36-5g-128-8
-    brand: samsung
-    model: "Galaxy A36 5G"
-    storage: 128GB
-    ram: 8
-  - id: galaxy-s26-ultra-256-12
-    brand: samsung
-    model: "Galaxy S26 Ultra 5G"
-    storage: 256GB
-    ram: 12
+# DISCOVERY MODE: every phone found in the shops is compared (cheapest valid price per colour).
+# The same model in two shops is joined automatically (model line, Pro/Max/Ultra/5G, storage, RAM, region, activation
+# must agree). Phones sold by only one shop are listed too (marked "تک‌منبع") unless you set min_sources: 2.
+discovery:
+  enabled: true
+  min_sources: 1            # 2 = only phones that at least two shops sell (real price comparison)
+  brands: []                # e.g. [apple, samsung, xiaomi]  (empty = all brands)
+  exclude_regex: ""         # e.g. "NOKIA 1\\d\\d|Hanofer" to skip feature phones
+
+# Optional: products you want to be sure about. They are always reported (even as "not found") and are not duplicated
+# by discovery. You can leave this empty.
+products: []
+#  - {id: iphone17-256-cha, brand: apple, model: "iPhone 17", storage: 256GB, region: "CH/A", condition: non_active}

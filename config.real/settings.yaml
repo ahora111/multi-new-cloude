@@ -13,3 +13,7 @@ telegram_dry_run: false
 telegram_only_on_change: true
 telegram_min_change_pct: 0.5
 telegram_state_file: data/real/telegram_state.json
+telegram_group_by: brand          # brand | product | none  -> one post per brand / per phone / one long post
+telegram_mode: full              # full = every phone each time | changes_only = only the colours whose price moved
+telegram_show_links: true
+telegram_max_messages: 60

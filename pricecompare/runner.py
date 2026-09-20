@@ -6,10 +6,11 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from . import history, report, telegram
-from .config import ConfigError, load_overrides, load_settings, load_sources, load_watchlist
+from .config import ConfigError, load_discovery, load_overrides, load_settings, load_sources, load_watchlist
+from .discovery import discover
 from .extract import Extractor
 from .lock import RunLock
-from .matcher import assign
+from .matcher import AUTO, MatchResult, assign
 from .pricing import build_product, scale_check
 from .sources import build_source
 
@@ -53,6 +54,7 @@ def run(config_dir="config", output_dir=None, dry_run=False, only_source=None, r
         watchlist = load_watchlist(config_dir, ex)
         source_cfgs = load_sources(config_dir)
         overrides = load_overrides(config_dir)
+        discovery = load_discovery(config_dir)
     except ConfigError as exc:
         return RunResult(EXIT_CONFIG, message=f"config error: {exc}")
     outdir = output_dir or settings.output_dir
@@ -69,13 +71,15 @@ def run(config_dir="config", output_dir=None, dry_run=False, only_source=None, r
     try:
         with RunLock(settings.lock_file, settings.lock_stale_minutes):
             return _run_locked(settings, ex, watchlist, source_cfgs, overrides, outdir, dry_run, require_all,
-                               base_dir, http, now, send_telegram)
+                               base_dir, http, now, send_telegram, discovery)
     except LockError as exc:
         return RunResult(EXIT_LOCKED, message=str(exc))
 
 
 def _run_locked(settings, ex, watchlist, source_cfgs, overrides, outdir, dry_run, require_all, base_dir, http, now,
-                send_telegram=True):
+                send_telegram=True, discovery=None):
+    from .config import Discovery
+    discovery = discovery or Discovery()
     offers, status, degraded, catalogs = [], [], set(), {}
     for cfg in source_cfgs:
         t0 = time.monotonic()
@@ -83,7 +87,7 @@ def _run_locked(settings, ex, watchlist, source_cfgs, overrides, outdir, dry_run
               "currency_unit": cfg.currency_unit}
         try:
             src = build_source(cfg, settings, base_dir, http)
-            got = src.fetch(watchlist)
+            got = src.fetch([] if discovery.enabled else watchlist)   # discovery reads the WHOLE catalog
             catalog = src.raw_count if src.raw_count is not None else len(got)
             st["count"], st["catalog_count"] = len(got), catalog
             catalogs[cfg.name] = list(src.catalog_titles) or [o.raw_title for o in got]
@@ -120,8 +124,36 @@ def _run_locked(settings, ex, watchlist, source_cfgs, overrides, outdir, dry_run
         for off, _ in matched.get(m["watch_id"], []):
             if off.color in m["colors"]:
                 off.color = m["as"]
+    dyn_items = []
+    if discovery.enabled:                                    # every phone nobody asked for explicitly
+        claimed = {(o.source, o.source_offer_id) for lst in matched.values() for o, _ in lst}
+        claimed |= {(r["source"], r["offer_id"]) for r in review_queue}
+        claimed |= {(x["source"], str(x["source_offer_id"])) for x in overrides["force_split"]}
+        rest = [o for o in offers if (o.source, o.source_offer_id) not in claimed]
+        for o in rest:
+            o.brand = o.brand or ("other" if o.model_core else "")
+        dyn_items, dyn_attrs, members = discover(rest, ex, settings, discovery, reserved_ids={w.id for w in watchlist})
+        used = set()
+        for w in dyn_items:
+            matched[w.id] = [(o, MatchResult(AUTO, 100.0, w.id, ["discovery cluster"])) for o in members[w.id]]
+            used |= {(o.source, o.source_offer_id) for o in members[w.id]}
+        rest_keys = {(o.source, o.source_offer_id) for o in rest}
+        rows = [{"source": o.source, "offer_id": o.source_offer_id, "title": o.raw_title,
+                 "watch_id": next((w.id for w in dyn_items if o in members[w.id]), None),
+                 "status": AUTO if (o.source, o.source_offer_id) in used else "NO_MATCH", "score": 100.0 if (o.source, o.source_offer_id) in used else 0.0,
+                 "reasons": ["discovery cluster"] if (o.source, o.source_offer_id) in used else ["unusable for discovery (no brand/model/price or filtered out)"]}
+                for o in rest]
+        match_report = [r for r in match_report if (r["source"], r["offer_id"]) not in rest_keys] + rows
+        watch_attrs.update(dyn_attrs)
+    all_items = list(watchlist) + dyn_items
+    dyn_ids = {w.id for w in dyn_items}
     priorities = {c.name: c.priority for c in source_cfgs}
-    products = [build_product(w, matched[w.id], priorities, settings, now, degraded) for w in watchlist]
+    products = [build_product(w, matched[w.id], priorities, settings, now, degraded) for w in all_items]
+    for p in products:
+        p["origin"] = "discovered" if p["id"] in dyn_ids else "watchlist"
+    if discovery.enabled and discovery.min_sources > 1:
+        products = [p for p in products if p["origin"] == "watchlist" or
+                    len({o["source"] for v in p["variants"] for o in v["offers"] if o["valid"]}) >= discovery.min_sources]
 
     warnings = [f"منبع «{s['name']}» {'خراب شد' if s['status'] == 'failed' else 'مشکوک است'}: {s['error']} — نتیجه ممکن است ناقص باشد"
                 for s in bad]
@@ -134,7 +166,7 @@ def _run_locked(settings, ex, watchlist, source_cfgs, overrides, outdir, dry_run
 
     not_found = [p["id"] for p in products if p["status"] == "not_found"]
     summary.update({
-        "offers_total": len(offers), "products_total": len(products),
+        "offers_total": len(offers), "products_total": len(products), "products_discovered": len(dyn_ids & {p["id"] for p in products}),
         "products_found": sum(p["status"] == "found" for p in products), "products_not_found": len(not_found),
         "review_items": len(review_queue),
         "suspect_offers": sum(o["suspect"] for p in products for v in p["variants"] for o in v["offers"]),
@@ -152,7 +184,8 @@ def _run_locked(settings, ex, watchlist, source_cfgs, overrides, outdir, dry_run
             tg_status = "skipped (--no-telegram)"
         elif settings.telegram_enabled:
             last_sent = history.load_state(settings.telegram_state_file)
-            changed = history.significant_change(current, last_sent, settings.telegram_min_change_pct)
+            changed_map, removed = history.changed_keys(current, last_sent, settings.telegram_min_change_pct)
+            changed = bool(changed_map or removed)
             if settings.telegram_only_on_change and not changed and current:
                 tg_status = f"no change >= {settings.telegram_min_change_pct}% since the last message: not sent"
             else:
@@ -161,8 +194,11 @@ def _run_locked(settings, ex, watchlist, source_cfgs, overrides, outdir, dry_run
                     tg_status, exit_code = "FAILED: TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID are not set", EXIT_TELEGRAM
                 else:
                     try:
-                        parts = telegram.send(tok, chat, report.build_telegram(doc), settings.telegram_max_message_len,
-                                              dry_run=settings.telegram_dry_run)
+                        msgs = report.build_telegram_messages(
+                            doc, settings.telegram_group_by, changed_map if settings.telegram_mode == "changes_only" else None,
+                            removed, settings.telegram_show_links)
+                        parts = telegram.send(tok, chat, msgs, settings.telegram_max_message_len,
+                                              dry_run=settings.telegram_dry_run, max_messages=settings.telegram_max_messages)
                         if settings.telegram_dry_run:
                             tg_status = f"dry-run: {len(parts)} message(s) NOT sent (telegram_dry_run=true)"
                         else:
@@ -176,7 +212,7 @@ def _run_locked(settings, ex, watchlist, source_cfgs, overrides, outdir, dry_run
     summary["telegram"] = tg_status
     doc["summary"] = summary
     return RunResult(exit_code, doc=doc, summary={**summary, "sources": status}, message=tg_status if exit_code else "ok",
-                     offers=offers, watchlist=watchlist, watch_attrs=watch_attrs, settings=settings,
+                     offers=offers, watchlist=all_items, watch_attrs=watch_attrs, settings=settings,
                      match_report=match_report, catalog_titles=catalogs)
 
 

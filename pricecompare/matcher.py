@@ -95,6 +95,9 @@ def assign(offers, watchlist, watch_attrs_by_id, settings, overrides):
             continue
         results = sorted((evaluate(off, w, watch_attrs_by_id[w.id], settings) for w in watchlist),
                          key=lambda r: (-{AUTO: 2, REVIEW: 1, NO_MATCH: 0}[r.status], -r.score))
+        if not results:                                   # empty explicit watchlist (discovery-only mode)
+            report.append(_row(off, None, NO_MATCH, 0, ["no explicit watchlist entry"]))
+            continue
         best = results[0]
         if best.status == AUTO and len(results) > 1 and results[1].status == AUTO and results[1].score == best.score:
             best = MatchResult(REVIEW, best.score, best.watch_id,

@@ -19,8 +19,9 @@ def _spy(monkeypatch, fail=None):
     def fake(token, chat, text, limit=2800, dry_run=True, **kw):
         if fail:
             raise fail
-        calls.append({"token": token, "chat": chat, "text": text, "dry_run": dry_run})
-        return telegram.split_message(text, limit)
+        joined = text if isinstance(text, str) else "\n\n".join(text)
+        calls.append({"token": token, "chat": chat, "text": joined, "messages": text, "dry_run": dry_run})
+        return telegram.split_message(joined, limit)
     monkeypatch.setattr(telegram, "send", fake)
     return calls
 
@@ -39,7 +40,7 @@ def test_message_is_plain_text_and_useful(tmp_path, monkeypatch):
     res = run(cfg, base_dir=base)
     assert res.exit_code == 0 and res.summary["telegram"].startswith("sent")
     text = calls[0]["text"]
-    assert "🏆 shop_b 64,100,000" in text and "❌ پیدا نشد: pixel-10-pro-256" in text
+    assert "🏆 shop_b 64,100,000" in text and "پیدا نشد: pixel-10-pro-256" in text
     assert "##" not in text and "**" not in text                      # no Markdown noise in Telegram
     assert calls[0]["chat"] == "42" and calls[0]["dry_run"] is False
 

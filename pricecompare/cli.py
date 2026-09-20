@@ -32,7 +32,7 @@ def _print_summary(res, show_offers=0, print_report=False):
     if not s:
         return
     keys = ["sources_ok", "sources_failed", "sources_degraded", "offers_total", "products_total",
-            "products_found", "products_not_found", "review_items", "suspect_offers", "needs_review_variants"]
+            "products_found", "products_discovered", "products_not_found", "review_items", "suspect_offers", "needs_review_variants"]
     print("\n".join(f"{k}: {s[k]}" for k in keys if k in s))
     for st in s.get("sources", []):
         cat = f", catalog={st['catalog_count']}" if "catalog_count" in st else ""

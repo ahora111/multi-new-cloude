@@ -9,7 +9,7 @@ sources:
     password_env: EWAYS_PASSWORD
     selected_ids: "16777:all-allz" # category selection string from the original project
     max_pages: 50
-    details: candidates            # fetch spec pages only for products that could match the watchlist
+    details: none                  # titles already carry storage/RAM/colour; 'candidates' fetches spec pages (slow for a whole catalog)
   - name: hamrahtel
     type: hamrahtel
     currency_unit: toman

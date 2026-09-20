@@ -57,15 +57,22 @@ def save_state(path, prices) -> None:
     tmp.replace(p)
 
 
-def significant_change(current: dict, last_sent: dict, min_pct: float) -> bool:
-    """True if a variant appeared/vanished or any winner price moved by >= min_pct % since the last message.
-    A change of source alone (same price) is NOT significant: shops swap the lead by a few toman all day."""
-    if set(current) != set(last_sent):
-        return True
+def changed_keys(current: dict, last_sent: dict, min_pct: float):
+    """(changed, removed): changed = {key: previous_price or None (new)} for variants whose winner price moved by
+    >= min_pct % (or that appeared); removed = keys that had a winner in the last message but not now.
+    A change of the winning SOURCE alone (same price) is not a change: shops swap the lead by a few toman all day."""
+    changed = {}
     for k, cur in current.items():
+        if k not in last_sent:
+            changed[k] = None
+            continue
         old = last_sent[k].get("price") or 0
-        if old <= 0:
-            return True
-        if abs(cur["price"] - old) / old * 100 >= min_pct and cur["price"] != old:
-            return True
-    return False
+        if old <= 0 or (cur["price"] != old and abs(cur["price"] - old) / old * 100 >= min_pct):
+            changed[k] = old or None
+    removed = [k for k in last_sent if k not in current]
+    return changed, removed
+
+
+def significant_change(current: dict, last_sent: dict, min_pct: float) -> bool:
+    changed, removed = changed_keys(current, last_sent, min_pct)
+    return bool(changed or removed)

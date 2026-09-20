@@ -33,6 +33,10 @@ class Settings:
     telegram_only_on_change: bool = True     # send only when something changed since the LAST MESSAGE
     telegram_min_change_pct: float = 0.5     # ...where 'changed' = a winner price moved >= this % (or a variant appeared/vanished)
     telegram_state_file: str = "data/telegram_state.json"   # prices as of the last message actually sent
+    telegram_group_by: str = "brand"          # brand | product | none  -> how the report is split into separate posts
+    telegram_mode: str = "full"               # full = every phone each time | changes_only = only variants whose price moved
+    telegram_show_links: bool = True
+    telegram_max_messages: int = 60           # safety cap (Telegram allows ~20 posts/minute per group)
     telegram_max_message_len: int = 2800
 
 
@@ -69,6 +73,10 @@ def load_settings(config_dir: str) -> Settings:
         raise ConfigError("settings.yaml: need 0 < match_review_threshold <= match_auto_threshold <= 100")
     if s.outlier_ratio < 1:
         raise ConfigError("settings.yaml: outlier_ratio must be >= 1")
+    if s.telegram_group_by not in ("brand", "product", "none"):
+        raise ConfigError("settings.yaml: telegram_group_by must be brand|product|none")
+    if s.telegram_mode not in ("full", "changes_only"):
+        raise ConfigError("settings.yaml: telegram_mode must be full|changes_only")
     if s.telegram_min_change_pct < 0:
         raise ConfigError("settings.yaml: telegram_min_change_pct must be >= 0")
     return s
@@ -83,11 +91,35 @@ def _opt_int(v, where):
         raise ConfigError(f"{where}: expected a number, got {v!r}")
 
 
+@dataclass
+class Discovery:
+    enabled: bool = False
+    min_sources: int = 1                 # 1 = list every phone; 2 = only phones sold by >= 2 shops
+    brands: list = field(default_factory=list)      # optional filter, e.g. [apple, samsung]
+    exclude_regex: str = ""              # skip titles matching this (e.g. feature phones)
+
+
+def load_discovery(config_dir: str) -> Discovery:
+    raw = (_load(Path(config_dir) / "watchlist.yaml").get("discovery")) or {}
+    known = {"enabled", "min_sources", "brands", "exclude_regex"}
+    if set(raw) - known:
+        raise ConfigError(f"watchlist.yaml discovery: unknown keys {sorted(set(raw) - known)}")
+    d = Discovery(enabled=bool(raw.get("enabled", False)), min_sources=int(raw.get("min_sources", 1)),
+                  brands=[str(b).lower() for b in raw.get("brands") or []], exclude_regex=str(raw.get("exclude_regex") or ""))
+    if d.min_sources < 1:
+        raise ConfigError("watchlist.yaml discovery: min_sources must be >= 1")
+    return d
+
+
 def load_watchlist(config_dir: str, extractor) -> list:
     data = _load(Path(config_dir) / "watchlist.yaml")
-    rows = data.get("products")
-    if not isinstance(rows, list) or not rows:
-        raise ConfigError("watchlist.yaml: 'products' must be a non-empty list")
+    rows = data.get("products") or []
+    if not isinstance(rows, list):
+        raise ConfigError("watchlist.yaml: 'products' must be a list")
+    if not rows:
+        if load_discovery(config_dir).enabled:
+            return []
+        raise ConfigError("watchlist.yaml: 'products' must be a non-empty list (or enable `discovery`)")
     out, seen = [], set()
     allowed = {"id", "brand", "model", "storage", "ram", "region", "condition", "colors", "max_price", "barcodes"}
     for i, r in enumerate(rows):

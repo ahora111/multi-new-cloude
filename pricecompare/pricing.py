@@ -103,6 +103,24 @@ def choose_variant(offers, priorities, settings, now, degraded, max_price=None):
     return res, win
 
 
+REGION_LABEL = {"cha": "CH/A", "singapore": "ZA/A", "usa_apple": "LL/A", "uae_apple": "AE/A", "japan": "J/A", "uk": "B/A",
+                "india_apple": "HN/A", "korea": "KH/A", "vietnam": "Vietnam", "india": "India", "uae": "UAE",
+                "global": "Global", "eu": "EU", "usa": "USA", "china": "China"}
+
+
+def product_label(w) -> str:
+    parts = [w.model]
+    if w.storage_gb:
+        parts.append(f"{w.storage_gb}GB")
+    if w.ram_gb and w.brand != "apple":
+        parts.append(f"RAM {w.ram_gb}GB")
+    if w.region:
+        parts.append(REGION_LABEL.get(w.region, w.region))
+    if w.condition:
+        parts.append({"nonactive": "Non Active", "active": "Active"}.get(w.condition, w.condition))
+    return " ".join(parts)
+
+
 def build_product(watch, matched, priorities, settings, now, degraded):
     """matched: list[(offer, MatchResult)] for this watch item."""
     groups, ignored, kept = {}, [], []
@@ -135,7 +153,8 @@ def build_product(watch, matched, priorities, settings, now, degraded):
         status = "found"
     else:
         status = "no_valid_price"
-    return {"id": watch.id, "brand": watch.brand, "model": watch.model, "storage_gb": watch.storage_gb,
+    return {"id": watch.id, "label": product_label(watch), "brand": watch.brand, "model": watch.model,
+            "storage_gb": watch.storage_gb,
             "ram_gb": watch.ram_gb, "region": watch.region, "condition": watch.condition,
             "status": status, "variants": variants, "ignored_offers": ignored}
 
