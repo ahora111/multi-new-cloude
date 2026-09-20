@@ -51,17 +51,49 @@ def test_missing_secrets_is_a_loud_failure_not_silence(tmp_path, monkeypatch):
     assert (tmp_path / "out" / "output.json").exists()                # data is still saved
 
 
-def test_only_sent_when_something_changed(tmp_path, monkeypatch):
+def _scale_state(tmp_path, factor):
+    f = tmp_path / "tg_state.json"
+    st = json.loads(f.read_text(encoding="utf-8"))
+    for k in st:
+        st[k]["price"] = st[k]["price"] * factor
+    f.write_text(json.dumps(st), encoding="utf-8")
+
+
+def test_only_sent_when_prices_moved_since_the_last_message(tmp_path, monkeypatch):
     cfg, base = _proj(tmp_path); calls = _spy(monkeypatch); _env(monkeypatch)
     run(cfg, base_dir=base)
     r2 = run(cfg, base_dir=base)
-    assert len(calls) == 1 and "unchanged" in r2.summary["telegram"]
-    hist = tmp_path / "history.jsonl"
-    rec = json.loads(hist.read_text(encoding="utf-8").splitlines()[-1])
-    k = next(iter(rec["prices"])); rec["prices"][k]["price"] += 1000   # pretend last time the price differed
-    hist.write_text(json.dumps(rec) + "\n", encoding="utf-8")
+    assert len(calls) == 1 and "not sent" in r2.summary["telegram"]
+    _scale_state(tmp_path, 1.001)                       # last message differs by 0.1% -> below the 0.5% threshold
+    assert "not sent" in run(cfg, base_dir=base).summary["telegram"] and len(calls) == 1
+    _scale_state(tmp_path, 1.2)                         # 20% different -> notify
     run(cfg, base_dir=base)
     assert len(calls) == 2
+
+
+def test_threshold_setting_is_used_and_baseline_is_the_last_sent_message(tmp_path, monkeypatch):
+    cfg, base = _proj(tmp_path, telegram_min_change_pct=0.0); calls = _spy(monkeypatch); _env(monkeypatch)
+    run(cfg, base_dir=base)
+    _scale_state(tmp_path, 1.001)
+    run(cfg, base_dir=base)
+    assert len(calls) == 2                               # with 0% every change notifies
+
+
+def test_new_or_vanished_variant_notifies(tmp_path, monkeypatch):
+    cfg, base = _proj(tmp_path); calls = _spy(monkeypatch); _env(monkeypatch)
+    run(cfg, base_dir=base)
+    f = tmp_path / "tg_state.json"
+    st = json.loads(f.read_text(encoding="utf-8"))
+    st.pop(next(iter(st)))
+    f.write_text(json.dumps(st), encoding="utf-8")
+    run(cfg, base_dir=base)
+    assert len(calls) == 2
+
+
+def test_dry_run_setting_does_not_consume_the_notification(tmp_path, monkeypatch):
+    cfg, base = _proj(tmp_path, telegram_dry_run=True); _spy(monkeypatch); _env(monkeypatch)
+    run(cfg, base_dir=base)
+    assert not (tmp_path / "tg_state.json").exists()      # nothing was really sent, so the next run must still send
 
 
 def test_only_on_change_setting_is_used(tmp_path, monkeypatch):

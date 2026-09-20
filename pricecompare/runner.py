@@ -116,6 +116,10 @@ def _run_locked(settings, ex, watchlist, source_cfgs, overrides, outdir, dry_run
         enrich(o, ex)
     watch_attrs = {w.id: ex.parse(w.model) for w in watchlist}
     matched, match_report, review_queue = assign(offers, watchlist, watch_attrs, settings, overrides)
+    for m in overrides["color_merge"]:                       # e.g. shop A says "blue", shop B says "light blue"
+        for off, _ in matched.get(m["watch_id"], []):
+            if off.color in m["colors"]:
+                off.color = m["as"]
     priorities = {c.name: c.priority for c in source_cfgs}
     products = [build_product(w, matched[w.id], priorities, settings, now, degraded) for w in watchlist]
 
@@ -147,9 +151,10 @@ def _run_locked(settings, ex, watchlist, source_cfgs, overrides, outdir, dry_run
         if settings.telegram_enabled and not send_telegram:
             tg_status = "skipped (--no-telegram)"
         elif settings.telegram_enabled:
-            changed = current != prev
+            last_sent = history.load_state(settings.telegram_state_file)
+            changed = history.significant_change(current, last_sent, settings.telegram_min_change_pct)
             if settings.telegram_only_on_change and not changed and current:
-                tg_status = "unchanged since last run: not sent"
+                tg_status = f"no change >= {settings.telegram_min_change_pct}% since the last message: not sent"
             else:
                 tok, chat = os.environ.get("TELEGRAM_BOT_TOKEN"), os.environ.get("TELEGRAM_CHAT_ID")
                 if not (tok and chat):
@@ -158,8 +163,11 @@ def _run_locked(settings, ex, watchlist, source_cfgs, overrides, outdir, dry_run
                     try:
                         parts = telegram.send(tok, chat, report.build_telegram(doc), settings.telegram_max_message_len,
                                               dry_run=settings.telegram_dry_run)
-                        tg_status = (f"dry-run: {len(parts)} message(s) NOT sent (telegram_dry_run=true)"
-                                     if settings.telegram_dry_run else f"sent {len(parts)} message(s)")
+                        if settings.telegram_dry_run:
+                            tg_status = f"dry-run: {len(parts)} message(s) NOT sent (telegram_dry_run=true)"
+                        else:
+                            history.save_state(settings.telegram_state_file, current)
+                            tg_status = f"sent {len(parts)} message(s)"
                     except Exception as exc:               # never leak the bot token (it is inside the request URL)
                         tg_status, exit_code = "FAILED: " + str(exc).replace(tok, "***"), EXIT_TELEGRAM
         history.append(settings.history_file, products, run_at)

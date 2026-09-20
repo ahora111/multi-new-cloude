@@ -220,3 +220,22 @@ def test_show_offers_prints_closest_titles_for_missing_products(tmp_path, capsys
         main(["--config-dir", cfg, "--base-dir", base, "run", "--dry-run", "--show-offers", "2"])
     out = buf.getvalue()
     assert "sample offers per source" in out and "closest catalog titles" in out and "pixel-10-pro-256 @" in out
+
+
+def test_color_merge_lets_differently_named_colours_compete(tmp_path):
+    import yaml as _y
+    wl = [{"id": "x", "brand": "apple", "model": "iPhone 17", "storage": 256}]
+    cfg, base = make_project(tmp_path, watchlist=wl)
+    v0 = {v["variant"]: v for v in run(cfg, base_dir=base).doc["products"][0]["variants"]}
+    assert set(v0) == {"blue", "black"}
+    (tmp_path / "config" / "overrides.yaml").write_text(_y.safe_dump({"color_merge": [{"watch_id": "x", "colors": ["blue"], "as": "black"}]}), encoding="utf-8")
+    v1 = {v["variant"]: v for v in run(cfg, base_dir=base).doc["products"][0]["variants"]}
+    assert set(v1) == {"black"}
+    assert len(v1["black"]["offers"]) == len(v0["black"]["offers"]) + len(v0["blue"]["offers"])
+
+
+def test_color_merge_validation(tmp_path):
+    import yaml as _y
+    cfg, base = make_project(tmp_path)
+    (tmp_path / "config" / "overrides.yaml").write_text(_y.safe_dump({"color_merge": [{"watch_id": "x"}]}), encoding="utf-8")
+    assert run(cfg, base_dir=base).exit_code == 4

@@ -11,3 +11,5 @@ lock_file: data/real/run.lock
 telegram_enabled: true       # needs TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID (see docs/GO_LIVE_FA.md)
 telegram_dry_run: false
 telegram_only_on_change: true
+telegram_min_change_pct: 0.5
+telegram_state_file: data/real/telegram_state.json

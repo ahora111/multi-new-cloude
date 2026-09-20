@@ -13,3 +13,5 @@ lock_file: data/run.lock
 telegram_enabled: false
 telegram_dry_run: true
 telegram_only_on_change: true
+telegram_min_change_pct: 0.5
+telegram_state_file: data/telegram_state.json

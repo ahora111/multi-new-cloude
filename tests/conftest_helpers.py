@@ -13,7 +13,8 @@ def make_project(tmp_path, settings=None, sources=None, watchlist=None):
     shutil.copytree(ROOT / "fixtures", tmp_path / "fixtures")
     st = yaml.safe_load((cfg / "settings.yaml").read_text(encoding="utf-8"))
     st.update({"output_dir": str(tmp_path / "out"), "history_file": str(tmp_path / "history.jsonl"),
-               "cache_dir": str(tmp_path / "cache"), "lock_file": str(tmp_path / "run.lock")})
+               "cache_dir": str(tmp_path / "cache"), "lock_file": str(tmp_path / "run.lock"),
+               "telegram_state_file": str(tmp_path / "tg_state.json")})
     st.update(settings or {})
     (cfg / "settings.yaml").write_text(yaml.safe_dump(st, allow_unicode=True), encoding="utf-8")
     if sources is not None:

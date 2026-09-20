@@ -39,3 +39,33 @@ def append(path, products, run_at):
     Path(path).parent.mkdir(parents=True, exist_ok=True)
     with open(path, "a", encoding="utf-8") as f:
         f.write(json.dumps({"run_at": run_at, "prices": prices}, ensure_ascii=False) + "\n")
+
+
+def load_state(path) -> dict:
+    p = Path(path)
+    try:
+        return json.loads(p.read_text(encoding="utf-8")) if p.exists() else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def save_state(path, prices) -> None:
+    p = Path(path)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    tmp = p.with_name(p.name + ".tmp")
+    tmp.write_text(json.dumps(prices, ensure_ascii=False, indent=1), encoding="utf-8")
+    tmp.replace(p)
+
+
+def significant_change(current: dict, last_sent: dict, min_pct: float) -> bool:
+    """True if a variant appeared/vanished or any winner price moved by >= min_pct % since the last message.
+    A change of source alone (same price) is NOT significant: shops swap the lead by a few toman all day."""
+    if set(current) != set(last_sent):
+        return True
+    for k, cur in current.items():
+        old = last_sent[k].get("price") or 0
+        if old <= 0:
+            return True
+        if abs(cur["price"] - old) / old * 100 >= min_pct and cur["price"] != old:
+            return True
+    return False

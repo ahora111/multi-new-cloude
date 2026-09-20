@@ -30,7 +30,9 @@ class Settings:
     dictionaries_file: Optional[str] = None
     telegram_enabled: bool = False
     telegram_dry_run: bool = True
-    telegram_only_on_change: bool = True     # send only when a winner (source/price) changed since the last run
+    telegram_only_on_change: bool = True     # send only when something changed since the LAST MESSAGE
+    telegram_min_change_pct: float = 0.5     # ...where 'changed' = a winner price moved >= this % (or a variant appeared/vanished)
+    telegram_state_file: str = "data/telegram_state.json"   # prices as of the last message actually sent
     telegram_max_message_len: int = 2800
 
 
@@ -67,6 +69,8 @@ def load_settings(config_dir: str) -> Settings:
         raise ConfigError("settings.yaml: need 0 < match_review_threshold <= match_auto_threshold <= 100")
     if s.outlier_ratio < 1:
         raise ConfigError("settings.yaml: outlier_ratio must be >= 1")
+    if s.telegram_min_change_pct < 0:
+        raise ConfigError("settings.yaml: telegram_min_change_pct must be >= 0")
     return s
 
 
@@ -149,4 +153,8 @@ def load_sources(config_dir: str) -> list:
 def load_overrides(config_dir: str) -> dict:
     p = Path(config_dir) / "overrides.yaml"
     data = _load(p) if p.exists() else {}
-    return {"force_match": data.get("force_match") or [], "force_split": data.get("force_split") or []}
+    merges = data.get("color_merge") or []
+    for i, m in enumerate(merges):
+        if not (isinstance(m, dict) and m.get("watch_id") and isinstance(m.get("colors"), list) and m.get("as")):
+            raise ConfigError(f"overrides.yaml color_merge[{i}]: need watch_id, colors: [..], as")
+    return {"force_match": data.get("force_match") or [], "force_split": data.get("force_split") or [], "color_merge": merges}
