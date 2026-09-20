@@ -41,7 +41,7 @@ jobs:
       - name: Debug Hamrahtel page layout
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.debug_hamrahtel }}
         continue-on-error: true
-        run: python -m pricecompare debug-hamrahtel --lines 160
+        run: python -m pricecompare debug-hamrahtel --lines 60 --grep "iPhone 17"
       - name: Compare prices (and send Telegram if enabled in config.real/settings.yaml)
         run: >
           python -m pricecompare --config-dir config.real run --print-report --show-offers 12

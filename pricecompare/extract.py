@@ -74,7 +74,8 @@ class Extractor:
             s = s.replace(fa, f" {en} ")
         for fa, en in self.tokmap:
             s = re.sub(rf"(?<!\w){re.escape(fa)}(?!\w)", en, s)
-        s = re.sub(r"(?<!\w)ch\s*[/\-.]?\s*a(?!\w)", "cha", s)
+        # Apple sales-region codes: CH/A, ZA/A, LL/A, AE/A, HN/A, KH/A, J/A, B/A ...  ->  cha, zaa, lla ...
+        s = re.sub(r"(?<!\w)(ch|za|ll|ae|hn|kh|j|b)\s*[/\-.]?\s*a(?!\w)", lambda m: m.group(1) + "a", s)
         s = re.sub(r"non[\s\-]*active", "nonactive", s)
         s = re.sub(r"(?<!\w)(1|2|3|4|6|8|12|16|18|24)\s*/\s*(32|64|128|256|512|1024)(?![\d/])", r"ram \1 \2gb", s)
         s = re.sub(r"(?<=\w)\+", " plus ", s)

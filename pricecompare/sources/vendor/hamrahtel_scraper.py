@@ -1,7 +1,7 @@
 import logging
 import re
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import List, Tuple
 from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeout
 
@@ -29,6 +29,7 @@ class Product:
     model: str
     price: str
     color: str = ''
+    stock: str = 'in_stock'      # pricecompare: 'out_of_stock' when the page marks the variant unavailable
 
 
 PERSIAN_DIGITS = str.maketrans('۰۱۲۳۴۵۶۷۸۹', '0123456789')
@@ -201,9 +202,8 @@ def extract_network_products(responses) -> List[Product]:
     return dedupe_products(products)
 
 
-def _is_color_label(x: str) -> bool:
-    """A short standalone colour label such as 'مشکی' or 'آبی روشن' (NOT a title that merely mentions a colour)."""
-    return bool(detect_color(x)) and not re.search(r'[A-Za-z]', x) and len(x.split()) <= 3
+BUTTON = 'افزودن'                                   # the "add to cart" text that closes every colour/price row
+UNAVAILABLE = ('ناموجود', 'اتمام موجودی', 'موجود نیست')
 
 
 def _split_title(title: str):
@@ -214,37 +214,49 @@ def _split_title(title: str):
     return brand, (title if not brand else ' '.join(parts[1:]))
 
 
-def parse_body_lines(raw_lines: List[str]) -> List[Product]:
-    """Pair every price line with its OWN title.
+def _looks_like_title(x: str) -> bool:
+    """Titles carry Latin letters AND digits and several words ('Galaxy A17 128GB RAM 4GB Vietnam').
+    Section headers ('سامسونگ', 'شیائومی - xiaomi', 'اپل Apple'), colours ('Black Titanium') and badges ('%3') do not."""
+    return bool(re.search(r'[A-Za-z]', x)) and bool(re.search(r'\d', x)) and len(x.split()) >= 2
 
-    pricecompare fix: the original implementation cut a fixed window around each price and assigned ALL prices in
-    that window to the FIRST title of the window, so prices of the previous card were attached to the next card's
-    title (e.g. the RAM-6GB price shown under the RAM-4GB title). Here, for each price line we walk backwards:
-    prices/colour labels of the same card are skipped, the nearest colour label (before crossing another price) is
-    the variant colour, and the first remaining line is the card title.
+
+def parse_body_lines(raw_lines: List[str]) -> List[Product]:
+    """State machine for the rendered Hamrahtel list (layout verified from a real page dump):
+
+        <brand header>            e.g. سامسونگ            (ignored)
+        <title>                   e.g. Galaxy A17 128GB RAM 4GB Vietnam
+          <colour> <price> [<old price> <%discount>] افزودن      <- one row per colour, repeated
+          <colour> <price> افزودن
+
+    Every price belongs to the LAST title seen and to the colour line directly before it. The first price of a row
+    is the current (discounted) price; any further price/percent lines of that row are ignored. The 'افزودن' button
+    closes the row. (Earlier versions attached prices of other cards to the wrong title, and treated the button text
+    and unknown colour names such as 'لیمویی' as product titles.)
     """
-    products = []
-    for i, line in enumerate(raw_lines):
-        if not is_price(line):
+    products: List[Product] = []
+    title, color, emitted = '', '', False
+    for x in raw_lines:
+        if x == BUTTON:
+            color, emitted = '', False
             continue
-        color, crossed_price, title = '', False, ''
-        for j in range(i - 1, max(-1, i - 13), -1):
-            x = raw_lines[j]
-            if is_price(x):
-                crossed_price = True
-                continue
-            if _is_color_label(x):
-                if not color and not crossed_price:
-                    color = detect_color(x)
-                continue
-            if x == 'مشخصات کالا' or x.startswith('برند'):
-                continue
-            title = x
-            break
-        if not title:
+        if any(x.startswith(u) for u in UNAVAILABLE):
+            if products and emitted:
+                products[-1] = replace(products[-1], stock='out_of_stock')
             continue
-        brand, model = _split_title(title)
-        products.append(Product(brand, model, line, color))
+        if is_price(x):
+            if title and not emitted:
+                brand, model = _split_title(title)
+                products.append(Product(brand, model, x, color))
+                emitted = True
+            continue
+        if _looks_like_title(x):
+            title, color, emitted = x, '', False
+            continue
+        if x == 'مشخصات کالا' or re.search(r'[\d%]', x):
+            continue                                # spec header / badges like '%3'
+        if emitted:                                 # a new colour label without a closing button: new row
+            emitted = False
+        color = x                                   # raw label kept (unknown colours such as 'لیمویی' survive)
     return dedupe_products(products)
 
 

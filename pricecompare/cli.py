@@ -106,6 +106,7 @@ def main(argv=None) -> int:
     d = sub.add_parser("debug-hamrahtel", help="print what Hamrahtel really renders (to fix the parser)")
     d.add_argument("--category", default="mobile")
     d.add_argument("--lines", type=int, default=120)
+    d.add_argument("--grep", default="", help="also show the lines around every line containing this text")
     m = sub.add_parser("match-report", help="show how offers were matched/rejected in the last run")
     m.add_argument("--status", choices=["AUTO_MATCH", "REVIEW", "NO_MATCH", "FORCED_SPLIT"])
     m.add_argument("--output-dir", default=None)
@@ -125,7 +126,7 @@ def main(argv=None) -> int:
         return res.exit_code
     if a.cmd == "debug-hamrahtel":
         from .sources.hamrahtel import dump_page
-        print(dump_page(a.category, a.lines))
+        print(dump_page(a.category, a.lines, grep=a.grep))
         return 0
     if a.cmd == "check-sources":
         res = run(a.config_dir, dry_run=True, base_dir=a.base_dir)

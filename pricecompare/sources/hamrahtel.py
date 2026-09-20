@@ -58,7 +58,7 @@ class HamrahtelSource(Source):
             # stable id (does NOT contain the price, unlike the old adapter, so history/overrides survive price changes)
             oid = base if seen[base] == 1 else f"{base}#{seen[base]}"
             out.append({"id": oid, "title": " ".join(x for x in (p.brand, p.model) if x), "price": p.price,
-                        "stock": "in_stock",          # the quick-checkout list only shows purchasable items
+                        "stock": getattr(p, "stock", "in_stock"),
                         "url": link, "color": p.color, "brand": p.brand})
         return out
 
@@ -71,12 +71,12 @@ def debug_lines(raw_lines, n=120, context=15):
     return [f"{i:4d} | {x}" for i, x in enumerate(raw_lines[a:a + n], start=a)]
 
 
-def dump_page(category="mobile", lines=120, timeout_ms=90000, max_scrolls=20):
+def dump_page(category="mobile", lines=120, timeout_ms=90000, max_scrolls=20, grep=""):
     """Diagnostics: print what the site really renders (text lines + JSON responses that contain prices)."""
     scraper = _scraper()
     from playwright.sync_api import sync_playwright
     url = scraper.CATEGORIES[category]
-    out, json_hits = [], []
+    out, json_hits, json_bodies = [], [], []
     with sync_playwright() as pw:
         browser = pw.chromium.launch(headless=True)
         page = browser.new_page()
@@ -88,6 +88,7 @@ def dump_page(category="mobile", lines=120, timeout_ms=90000, max_scrolls=20):
                     n = body.lower().count("price")
                     if n:
                         json_hits.append((n, len(body), resp.url[:140]))
+                        json_bodies.append(body)
             except Exception:
                 pass
         page.on("response", on_response)
@@ -107,8 +108,19 @@ def dump_page(category="mobile", lines=120, timeout_ms=90000, max_scrolls=20):
     out.append(f"non-empty text lines: {len(raw)} | price-like lines: {sum(scraper.is_price(x) for x in raw)}")
     out.append(f"card selector counts: {card_counts}")
     out.append("JSON responses containing 'price' (count, bytes, url): " + str(sorted(json_hits, reverse=True)[:6]))
+    if grep:
+        out.append(f"--- lines matching {grep!r} (3 before / 6 after) ---")
+        hits = [i for i, x in enumerate(raw) if grep.lower() in x.lower()][:6]
+        for i in hits:
+            out += [f"{j:4d} | {raw[j]}" for j in range(max(0, i - 3), min(len(raw), i + 7))] + ["  ..."]
+        if not hits:
+            out.append("(no line contains it)")
     out.append("--- rendered text around the first price line ---")
     out += debug_lines(raw, lines)
+    if json_bodies:
+        big = max(json_bodies, key=len)
+        out.append(f"--- largest GraphQL/JSON response with prices ({len(big)} bytes), first 2500 chars ---")
+        out.append(big[:2500])
     parsed = scraper.parse_body_lines(raw)
     out.append(f"--- parse_body_lines(): {len(parsed)} products; first 12 ---")
     out += [f"   {p}" for p in parsed[:12]]
