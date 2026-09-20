@@ -124,7 +124,7 @@ def test_hamrahtel_ids_are_price_independent_urls_and_category_filter(monkeypatc
         seen["timeout"] = opts.page_timeout_ms
         return _ht_products(sc), True
     monkeypatch.setattr(sc, "fetch_all_products", fake)
-    cfg = SourceConfig("hamrahtel", "hamrahtel", "toman", options={"categories": ["mobile"], "page_timeout_ms": 1234})
+    cfg = SourceConfig("hamrahtel", "hamrahtel", "toman", options={"strategy": "legacy", "categories": ["mobile"], "page_timeout_ms": 1234})
     recs = build_source(cfg).fetch([])
     assert seen["cats"] == ["mobile"] and seen["timeout"] == 1234
     assert [r.source_offer_id for r in recs] == ["iPhone|iPhone 17 256GB|آبی", "iPhone|iPhone 17 256GB|آبی#2", "Galaxy|Galaxy A17 4G 128GB|مشکی"]
@@ -138,7 +138,7 @@ def test_hamrahtel_zero_products_is_a_failure_not_an_empty_success(monkeypatch):
         return
     monkeypatch.setattr(sc, "fetch_all_products", lambda o: ([], False))
     try:
-        build_source(SourceConfig("hamrahtel", "hamrahtel", "toman")).fetch([])
+        build_source(SourceConfig("hamrahtel", "hamrahtel", "toman", options={"strategy": "legacy"})).fetch([])
     except RuntimeError as exc:
         assert "zero products" in str(exc)
     else:
@@ -159,7 +159,7 @@ def test_both_real_sources_together_pick_the_cheapest(tmp_path, monkeypatch):
     monkeypatch.setattr(sc, "fetch_all_products", lambda o: (_ht_products(sc), True))
     monkeypatch.setenv("EWAYS_USERNAME", "u"); monkeypatch.setenv("EWAYS_PASSWORD", "p")
     srcs = [{"name": "eways", "type": "eways", "currency_unit": "rial", "priority": 10},
-            {"name": "hamrahtel", "type": "hamrahtel", "currency_unit": "toman", "priority": 20}]
+            {"name": "hamrahtel", "type": "hamrahtel", "currency_unit": "toman", "priority": 20, "strategy": "legacy"}]
     wl = [{"id": "i", "brand": "apple", "model": "iPhone 17", "storage": 256}, {"id": "a", "brand": "samsung", "model": "Galaxy A17 4G", "storage": 128, "ram": 4}]
     cfg, base = make_project(tmp_path, sources=srcs, watchlist=wl)
     res = run(cfg, base_dir=base)

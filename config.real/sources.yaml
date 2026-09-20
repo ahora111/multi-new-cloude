@@ -16,6 +16,8 @@ sources:
     priority: 20
     min_expected_products: 20
     categories: [mobile]
+    strategy: auto                # auto = GraphQL API of the site (exact prices/stock), page text as fallback
+    # product_url_template: "https://hamrahtel.com/...{slug}"   # once the real product URL pattern is known
     page_timeout_ms: 90000
     scrape_attempts: 3
     max_scrolls: 20

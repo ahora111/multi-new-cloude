@@ -1,26 +1,43 @@
-# Products to track. Only these are compared. Anything not found is reported as "not found".
+# Products to track (examples taken from the REAL catalogs seen on 2026-09-20; replace with yours).
+# Only these are compared. A product that no source stocks is reported as "not found" (that is normal).
+# Tips: put the exact model line in `model` (Pro / Pro Max / Ultra / 5G are DIFFERENT products);
+#       set region (CH/A, ZA/A ...) and condition (active | non_active) for iPhones, RAM for Android phones.
 products:
-  - id: iphone17-256
+  - id: iphone17-256-cha
     brand: apple
-    model: "iPhone 17"          # exact model line; Pro / Pro Max / Air / e are DIFFERENT products
+    model: "iPhone 17"
     storage: 256GB
-    colors: [any]               # any = every colour is priced separately
-  - id: iphone17pro-256
+    region: "CH/A"
+    condition: non_active
+  - id: iphone17-promax-256-zaa
     brand: apple
-    model: "iPhone 17 Pro"
+    model: "iPhone 17 Pro Max"
     storage: 256GB
-    max_price: 95000000         # optional: warn when the winner is above this
-  - id: galaxy-a17-4g-128
-    brand: samsung
-    model: "Galaxy A17 4G"
+    region: "ZA/A"
+    condition: non_active
+  - id: iphone16-128-cha
+    brand: apple
+    model: "iPhone 16"
+    storage: 128GB
+    region: "CH/A"
+    condition: non_active
+  - id: redmi-a3-128-4
+    brand: xiaomi
+    model: "Redmi A3"
     storage: 128GB
     ram: 4
-  - id: redmi-note-14-256-8
-    brand: xiaomi
-    model: "Redmi Note 14"
-    storage: 256GB
+  - id: galaxy-a17-128-6
+    brand: samsung
+    model: "Galaxy A17"
+    storage: 128GB
+    ram: 6
+  - id: galaxy-a36-5g-128-8
+    brand: samsung
+    model: "Galaxy A36 5G"
+    storage: 128GB
     ram: 8
-  - id: pixel-10-pro-256
-    brand: google
-    model: "Pixel 10 Pro"
+  - id: galaxy-s26-ultra-256-12
+    brand: samsung
+    model: "Galaxy S26 Ultra 5G"
     storage: 256GB
+    ram: 12

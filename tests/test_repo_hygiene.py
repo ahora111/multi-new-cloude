@@ -18,3 +18,14 @@ def test_required_files_are_not_git_ignored():
         return
     ignored = [f for f in REQUIRED if subprocess.run(["git", "check-ignore", "-q", "--no-index", f], cwd=ROOT).returncode == 0]
     assert not ignored, f"ignored by .gitignore (would be missing in CI): {ignored}"
+
+
+def test_real_config_profile_is_valid():
+    from pricecompare.config import load_settings, load_sources, load_watchlist
+    from pricecompare.extract import Extractor
+    cfg = str(ROOT / "config.real")
+    load_settings(cfg)
+    srcs = load_sources(cfg)
+    assert {s.name for s in srcs} == {"eways", "hamrahtel"} and {s.currency_unit for s in srcs} == {"rial", "toman"}
+    wl = load_watchlist(cfg, Extractor())
+    assert len(wl) >= 5 and {w.region for w in wl if w.region} == {"cha", "singapore"}

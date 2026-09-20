@@ -37,7 +37,7 @@ def _print_summary(res, show_offers=0, print_report=False):
     for st in s.get("sources", []):
         cat = f", catalog={st['catalog_count']}" if "catalog_count" in st else ""
         print(f"  - {st['name']}: {st['status']} ({st['count']} relevant offers{cat}, {st['seconds']}s)" +
-              (f" — {st['error']}" if st.get("error") else ""))
+              (f" — {st['error']}" if st.get("error") else "") + (f" [{st['note']}]" if st.get("note") else ""))
     if "telegram" in s:
         print(f"telegram: {s['telegram']}")
     if res.doc:

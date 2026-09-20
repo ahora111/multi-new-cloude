@@ -148,7 +148,7 @@ def test_real_layout_end_to_end_prices_only_the_right_rows(tmp_path, monkeypatch
     monkeypatch.setattr(sc, "fetch_all_products", lambda o: (products, True))
     wl = [{"id": "a17", "brand": "samsung", "model": "Galaxy A17 4G", "storage": 128, "ram": 4},
           {"id": "iphone16", "brand": "apple", "model": "iPhone 16", "storage": 128, "region": "CH/A", "condition": "non_active"}]
-    cfg, base = make_project(tmp_path, sources=[{"name": "hamrahtel", "type": "hamrahtel", "currency_unit": "toman"}], watchlist=wl)
+    cfg, base = make_project(tmp_path, sources=[{"name": "hamrahtel", "type": "hamrahtel", "currency_unit": "toman", "strategy": "legacy"}], watchlist=wl)
     res = run(cfg, base_dir=base)
     by = {p["id"]: {v["variant"]: v["winner"]["price_toman"] for v in p["variants"] if v["winner"]} for p in res.doc["products"]}
     assert by["a17"] == {"black": 47_299_000, "light blue": 47_199_000, "gray": 47_199_000}

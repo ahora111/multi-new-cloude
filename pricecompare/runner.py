@@ -87,6 +87,7 @@ def _run_locked(settings, ex, watchlist, source_cfgs, overrides, outdir, dry_run
             catalog = src.raw_count if src.raw_count is not None else len(got)
             st["count"], st["catalog_count"] = len(got), catalog
             catalogs[cfg.name] = list(src.catalog_titles) or [o.raw_title for o in got]
+            st["note"] = src.note
             # health = size of the WHOLE catalog we saw, not of the watchlist-filtered subset
             if catalog < cfg.min_expected_products:
                 st["status"] = "degraded"
