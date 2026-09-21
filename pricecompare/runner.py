@@ -88,6 +88,9 @@ def _run_locked(settings, ex, watchlist, source_cfgs, overrides, outdir, dry_run
         try:
             src = build_source(cfg, settings, base_dir, http)
             got = src.fetch([] if discovery.enabled else watchlist)   # discovery reads the WHOLE catalog
+            priced = sum(1 for o in got if o.price_raw)
+            if got and priced < 0.2 * len(got):
+                raise RuntimeError(f"only {priced} of {len(got)} offers have a price (not logged in / layout changed?)")
             catalog = src.raw_count if src.raw_count is not None else len(got)
             st["count"], st["catalog_count"] = len(got), catalog
             catalogs[cfg.name] = list(src.catalog_titles) or [o.raw_title for o in got]

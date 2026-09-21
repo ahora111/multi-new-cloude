@@ -49,6 +49,8 @@ jobs:
         env:
           EWAYS_USERNAME: ${{ secrets.EWAYS_USERNAME }}
           EWAYS_PASSWORD: ${{ secrets.EWAYS_PASSWORD }}
+          EWAYS_COOKIE: ${{ secrets.EWAYS_COOKIE }}      # optional: browser cookie (Aut=...) when the login is blocked
+          EWAYS_PROXY: ${{ secrets.EWAYS_PROXY }}        # optional: proxy for Eways only
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           # EWAYS_VERIFY_SSL: "true"    # the original scraper disables TLS verification by default; try enabling it
