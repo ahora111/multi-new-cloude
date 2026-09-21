@@ -76,7 +76,10 @@ class Extractor:
             s = re.sub(rf"(?<!\w){re.escape(fa)}(?!\w)", en, s)
         # Apple sales-region codes: CH/A, ZA/A, LL/A, AE/A, HN/A, KH/A, J/A, B/A ...  ->  cha, zaa, lla ...
         s = re.sub(r"(?<!\w)(ch|za|ll|ae|hn|kh|j|b)\s*[/\-.]?\s*a(?!\w)", lambda m: m.group(1) + "a", s)
-        s = re.sub(r"non[\s\-]*active", "nonactive", s)
+        # Activation aliases. Some sources emit malformed variants such as
+        # "Not Active" / "Non Active"; keep one canonical token for matching.
+        s = re.sub(r"\bnon[\s\-]*active\b", "nonactive", s)
+        s = re.sub(r"\bnot[\s\-]*active\b", "nonactive", s)
         s = re.sub(r"(?<!\w)(1|2|3|4|6|8|12|16|18|24)\s*/\s*(32|64|128|256|512|1024)(?![\d/])", r"ram \1 \2gb", s)
         s = re.sub(r"(?<=\w)\+", " plus ", s)
         s = re.sub(r"[()\[\]{}،؛:;,|_\\\"'«»!?*]+", " ", s)
@@ -111,10 +114,21 @@ class Extractor:
         t = " " + self.normalize_text(title) + " "
         a = Attrs()
 
-        m = re.search(r"(?<!\w)(nonactive|active)(?!\w)", t)
-        if m:
-            a.condition = m.group(1)
-            t = t.replace(m.group(0), " ", 1)
+        # A few source titles contain a broken translation/SEO fragment between
+        # "Not" and the final "Active", e.g.
+        # "iPhone 17 Not شده Pro Max ... Active" or
+        # "iPhone 17 Not دوسیم و پارت نامبر ... Active".
+        # Treat the pair as the same non-active status, but remove only the
+        # status words so model/tier/storage/region tokens are preserved.
+        if re.search(r"(?<!\w)not(?!\w)", t) and re.search(r"(?<!\w)active(?!\w)", t):
+            t = re.sub(r"(?<!\w)not(?!\w)", " ", t, count=1)
+            t = re.sub(r"(?<!\w)active(?!\w)", " ", t, count=1)
+            a.condition = "nonactive"
+        else:
+            m = re.search(r"(?<!\w)(nonactive|active)(?!\w)", t)
+            if m:
+                a.condition = m.group(1)
+                t = t.replace(m.group(0), " ", 1)
         canon, syn = self._find(self._regions, t.strip())
         if canon:
             a.region = canon
@@ -138,6 +152,12 @@ class Extractor:
         if canon:
             a.color = canon
             t = re.sub(rf"(?<!\w){re.escape(syn)}(?!\w)", " ", t)
+
+        # Persian attribute synonyms are consumed above (brand/token/phrase,
+        # color, region). Any Persian text left at this point is source-specific
+        # marketing/SEO noise. Remove it from the model identity so it can never
+        # create fake products such as "17 not دوسیم و پارت نامبر".
+        t = re.sub(rf"[{_FA_RANGE}]+", " ", t)
 
         brand_hint = self.normalize_text(raw_brand)
         toks = t.split()

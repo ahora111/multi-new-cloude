@@ -46,6 +46,22 @@ def test_clusters_join_across_shops_and_never_merge_different_models():
     assert sum(n.startswith("iPhone 17 ") and "Pro" not in n for n in names) == 1
 
 
+def test_malformed_persian_title_noise_does_not_leak_into_discovery_labels():
+    offers = [
+        off("farnaa", "1", "iPhone 17 Not دوسیم و پارت نامبر 256GB CH/A Active", 350e6),
+        off("farnaa", "2", "iPhone 17 Not شده Pro Max 256GB ZA/A Active", 540e6),
+        off("farnaa", "3", "iPhone 17 Not و پارت نامبر Pro 256GB ZA/A Active", 472e6),
+        off("farnaa", "4", "iPhone 17 دوسیم Not شده Pro Max 512GB ZA/A Active", 580e6),
+    ]
+    items, _, _ = discover(offers, ex, st, Discovery(enabled=True))
+    labels = _labels(items)
+    assert "iPhone 17 256GB CH/A Non Active" in labels
+    assert "iPhone 17 Pro Max 256GB ZA/A Non Active" in labels
+    assert "iPhone 17 Pro 256GB ZA/A Non Active" in labels
+    assert "iPhone 17 Pro Max 512GB ZA/A Non Active" in labels
+    assert not any("د" in label or "و" in label or "شده" in label for label in labels)
+
+
 def test_known_regions_never_share_a_product_but_unknown_is_a_wildcard():
     offers = [off("a", "1", "iPhone 17 256GB CH/A Non Active", 1e8, color="Black"),
               off("b", "2", "iPhone 17 256GB ZA/A Non Active", 1e8, color="Black"),

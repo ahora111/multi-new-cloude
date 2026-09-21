@@ -38,3 +38,34 @@ def test_parse_price_formats():
     assert parse_price("641,000,000 ریال") == 641000000
     assert parse_price(4.9e7) == 4.9e7
     assert parse_price("ناموجود") is None and parse_price("") is None and parse_price(None) is None
+
+
+def test_malformed_not_active_titles_are_canonicalized_and_persian_noise_is_removed():
+    titles = [
+        "iPhone 17 Not دوسیم و پارت نامبر 256GB CH/A Active",
+        "iPhone 17 Not شده Pro Max 256GB ZA/A Active",
+        "iPhone 17 Not و پارت نامبر Pro 256GB ZA/A Active",
+        "iPhone 17 دوسیم Not شده Pro Max 512GB ZA/A Active",
+    ]
+    attrs = [ex.parse(t) for t in titles]
+    assert [a.condition for a in attrs] == ["nonactive"] * 4
+    assert attrs[0].core == ["iphone", "17"]
+    assert attrs[1].core == ["iphone", "17"]
+    assert attrs[2].core == ["iphone", "17"]
+    assert attrs[3].core == ["iphone", "17"]
+    assert attrs[1].tiers == ["max", "pro"]
+    assert attrs[2].tiers == ["pro"]
+    assert attrs[3].tiers == ["max", "pro"]
+    assert [a.region for a in attrs] == ["cha", "singapore", "singapore", "singapore"]
+    assert [a.storage_gb for a in attrs] == [256, 256, 256, 512]
+
+
+def test_black_titanium_is_same_canonical_color_as_black():
+    assert ex.parse("iPhone 16 Pro Max 1TB ZA/A Non Active Black Titanium").color == "black"
+    assert ex.parse("iPhone 16 Pro Max 1TB ZA/A Non Active Black").color == "black"
+
+
+def test_not_active_is_same_as_non_active_but_active_stays_distinct():
+    assert ex.parse("iPhone 17 256GB CH/A Not Active").condition == "nonactive"
+    assert ex.parse("iPhone 17 256GB CH/A Non Active").condition == "nonactive"
+    assert ex.parse("iPhone 17 256GB CH/A Active").condition == "active"

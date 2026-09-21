@@ -54,11 +54,10 @@ brand_drop_words: [apple, samsung, xiaomi, huawei, honor, google, oneplus, nokia
 # tier words: must be IDENTICAL on both sides of a match (hard constraint)
 tiers: [pro, max, plus, ultra, air, fe, mini, lite, se, edge, fold, flip, neo, turbo, prime, gt]
 colors:
-  black titanium: [black titanium]
+  black: [black, black titanium, مشکی, سیاه, space black, jet black, تیتانیوم - مشکی, تیتانیوم مشکی]
   white titanium: [white titanium]
   natural titanium: [natural titanium]
   desert titanium: [desert titanium]
-  black: [black, مشکی, سیاه, space black, jet black]
   white: [white, سفید]
   blue: [blue, آبی, ابی, mist blue, light blue, آبی روشن, sky blue]
   dark blue: [dark blue, آبی تیره, navy, سرمه ای]
@@ -89,4 +88,4 @@ regions:
   eu: [eu, europe, اروپا]
   usa: [usa, آمریکا]
   china: [china, چین]
-generic_words: [مونتاژ, ایران, ساخت, phone, mobile, smartphone, model, capacity, ram, storage, memory, گوشی, موبایل, مدل, تومان, ریال, toman, rial, dual, sim, nfc, دو, سیم, کارت, گارانتی, رجیستری, رجیستر, پلمپ, "5g", "4g"]
+generic_words: [مونتاژ, ایران, ساخت, phone, mobile, smartphone, model, capacity, ram, storage, memory, گوشی, موبایل, مدل, تومان, ریال, toman, rial, dual, sim, nfc, دو, سیم, کارت, دوسیم, گارانتی, رجیستری, رجیستر, پلمپ, part, number, and, و, شده, "5g", "4g"]
