@@ -129,6 +129,17 @@ def build_product(watch, matched, priorities, settings, now, degraded):
             ignored.append({"source": off.source, "offer_id": off.source_offer_id, "reason": "رنگ درخواست‌نشده"})
             continue
         kept.append(off)
+
+    # An explicit watchlist with colours left open (colors: [any]) should not
+    # create a fake standalone variant for offers whose colour is unknown when
+    # the same product already has concrete colour offers. Such an offer is
+    # ambiguous between those colours; keeping it in a separate
+    # "بدون رنگ/مشخصه" price would make the report look like an extra product
+    # variant and can incorrectly win on price. If no concrete colour exists,
+    # retain the unknown-colour offer so a source with no colour field is still
+    # usable.
+    if watch.colors == ["any"] and any(o.color for o in kept):
+        kept = [o for o in kept if o.color]
     # storage / RAM split variants only when the watchlist leaves them open AND offers really carry >= 2 different
     # known values. (One shop stating RAM 8 while another omits it must NOT create two fake variants.)
     include = frozenset(a for a in ("storage_gb", "ram_gb")
