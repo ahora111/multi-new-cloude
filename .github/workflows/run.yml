@@ -6,6 +6,10 @@ on:
         description: "Send the Telegram message for this manual run?"
         type: boolean
         default: true
+      debug_url:
+        description: "Dump what this shop page really contains (e.g. https://farnaa.com/category/mobile) to add it as a new source"
+        type: string
+        default: ""
       debug_hamrahtel:
         description: "Also print the raw Hamrahtel page text (to debug the parser)?"
         type: boolean
@@ -38,6 +42,10 @@ jobs:
           path: data/real
           key: price-state-${{ github.run_id }}
           restore-keys: price-state-
+      - name: Inspect a new shop page
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.debug_url != '' }}
+        continue-on-error: true
+        run: python -m pricecompare debug-page "${{ inputs.debug_url }}" --lines 100
       - name: Debug Hamrahtel page layout
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.debug_hamrahtel }}
         continue-on-error: true
