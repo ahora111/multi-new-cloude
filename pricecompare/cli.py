@@ -68,7 +68,8 @@ def _print_summary(res, show_offers=0, print_report=False):
                                        len(set(res.watch_attrs[ro[0].watch_id].core) & set(ro[1].model_core)), ro[0].score), reverse=True)
             print(f"--- {src}")
             for r_, o in rows[:show_offers]:
-                print(f"  {o.raw_title[:70]!r} price={o.price_toman and int(o.price_toman):,} | brand={o.brand or '?'} core={' '.join(o.model_core)} "
+                price_text = f"{int(o.price_toman):,}" if o.price_toman is not None else "?"
+                print(f"  {o.raw_title[:70]!r} price={price_text} | brand={o.brand or '?'} core={' '.join(o.model_core)} "
                       f"tiers={o.tiers} {o.storage_gb}GB ram={o.ram_gb} color={o.color or '?'}\n"
                       f"      -> {r_.watch_id}: {r_.status} ({'; '.join(r_.reasons)})")
     if show_offers and res.doc and res.catalog_titles:

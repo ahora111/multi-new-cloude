@@ -22,15 +22,17 @@ def make_project(tmp_path, settings=None, sources=None, watchlist=None):
     if watchlist is not None:
         (cfg / "watchlist.yaml").write_text(yaml.safe_dump({"products": watchlist}, allow_unicode=True), encoding="utf-8")
     # Unit/integration tests must never depend on live Farnaa HTTP data.
-    # The production config keeps the real URL; tests use the committed fixture
-    # so catalog size, colours and suspect-offer counts remain deterministic.
-    src_path = cfg / "sources.yaml"
-    src_data = yaml.safe_load(src_path.read_text(encoding="utf-8"))
-    for source in src_data.get("sources", []):
-        if source.get("type") == "farnaa":
-            source.pop("url", None)
-            source["path"] = "fixtures/farnaa_mobile.html"
-    src_path.write_text(yaml.safe_dump(src_data, allow_unicode=True), encoding="utf-8")
+    # Only the default test project is redirected to the committed fixture.
+    # Explicitly supplied source configurations are preserved verbatim so tests
+    # can intentionally simulate broken/all-failed sources.
+    if sources is None:
+        src_path = cfg / "sources.yaml"
+        src_data = yaml.safe_load(src_path.read_text(encoding="utf-8"))
+        for source in src_data.get("sources", []):
+            if source.get("type") == "farnaa":
+                source.pop("url", None)
+                source["path"] = "fixtures/farnaa_mobile.html"
+        src_path.write_text(yaml.safe_dump(src_data, allow_unicode=True), encoding="utf-8")
     return str(cfg), str(tmp_path)
 
 
