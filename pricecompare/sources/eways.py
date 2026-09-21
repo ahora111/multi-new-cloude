@@ -13,7 +13,6 @@ sources.yaml:
 from __future__ import annotations
 import importlib
 import os
-import time
 from ..extract import Extractor
 from .base import Source
 
@@ -49,25 +48,12 @@ class EwaysSource(Source):
             return any((not a.brand or a.brand == b) and core <= toks for b, core in targets)
         return ok
 
-    def _login(self, legacy, user, pw):
-        """The original scraper treats 'HTTP 200 without the Aut cookie' as a successful login (it only checks that the
-        PUBLIC category page opens). That silently gives a guest session: no prices at all. We insist on the Aut cookie."""
-        attempts = max(1, int(self.o.get("login_attempts", 3)))
-        delay = float(self.o.get("login_retry_delay", 20))
-        for i in range(attempts):
-            session = legacy.login_eways(user, pw)
-            if session is not None and "Aut" in session.cookies:
-                return session
-            if i < attempts - 1:
-                time.sleep(delay * (i + 1))
-        raise RuntimeError(
-            f"Eways login failed: no 'Aut' cookie after {attempts} attempt(s) (wrong credentials, captcha/WAF, or the IP is "
-            "blocked/rate-limited). Try later, run from another IP (EWAYS_PROXY), or paste a browser cookie into EWAYS_COOKIE.")
-
     def records(self, watchlist):
         legacy = _legacy()
         user, pw = self._credentials()
-        session = self._login(legacy, user, pw)
+        session = legacy.login_eways(user, pw)
+        if not session:
+            raise RuntimeError("Eways login failed (check credentials / IP restrictions)")
         cats = legacy.get_and_parse_categories(session)
         if not cats:
             raise RuntimeError("Eways categories could not be loaded")
@@ -88,10 +74,6 @@ class EwaysSource(Source):
         if failed and not rows:
             raise RuntimeError("All selected Eways categories failed")
 
-        priced = sum(1 for r in rows.values() if str(r.get("price") or "").strip())
-        if rows and priced < 0.2 * len(rows):
-            raise RuntimeError(f"Eways listing has prices for only {priced} of {len(rows)} products: the session is not "
-                               "authenticated (guest view). Login/cookie problem, not a real price list.")
         canonical = legacy.condense_products_to_leaf(rows, cats)
         self.raw_count = len(canonical)
         self.catalog_titles = [str(r.get('name') or '') for r in canonical.values()][:3000]

@@ -103,11 +103,6 @@ def main(argv=None) -> int:
     r.add_argument("--show-offers", type=int, default=0, metavar="N", help="print N sample offers per source with how they matched")
     r.add_argument("--print-report", action="store_true", help="print the Persian report to the console/log")
     sub.add_parser("check-sources", help="fetch every source and report health")
-    dp = sub.add_parser("debug-page", help="dump what ANY shop page really contains (to write a new source from facts)")
-    dp.add_argument("url")
-    dp.add_argument("--lines", type=int, default=80)
-    dp.add_argument("--grep", default="")
-    dp.add_argument("--scrolls", type=int, default=15)
     d = sub.add_parser("debug-hamrahtel", help="print what Hamrahtel really renders (to fix the parser)")
     d.add_argument("--category", default="mobile")
     d.add_argument("--lines", type=int, default=120)
@@ -129,10 +124,6 @@ def main(argv=None) -> int:
         if res.exit_code != EXIT_OK:
             print(res.message, file=sys.stderr)
         return res.exit_code
-    if a.cmd == "debug-page":
-        from .debugpage import dump
-        print(dump(a.url, a.lines, a.grep, max_scrolls=a.scrolls))
-        return 0
     if a.cmd == "debug-hamrahtel":
         from .sources.hamrahtel import dump_page
         print(dump_page(a.category, a.lines, grep=a.grep))

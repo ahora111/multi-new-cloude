@@ -45,3 +45,27 @@ python -m pricecompare --config-dir config.real check-sources
 - افزونه‌های Eways/Hamrahtel با تست‌های ساختگی (fake) بررسی شده‌اند؛ روی سایت واقعی اجرا نشده‌اند (`pytest -m live` را روی سیستم خودتان بزنید).
 - اگر watchlist شبکه‌ی 4G/5G را مشخص نکند، هر دو پذیرفته می‌شوند (در مدل بنویسید: `Galaxy A17 4G`).
 - ریجن/اکتیو در watchlist مشخص نشده باشد و پیشنهادها ریجن‌های مختلف داشته باشند، واریانت `needs_review` می‌شود.
+
+## Farnaa source
+
+The project now includes a `farnaa` source for the mobile catalog at `https://farnaa.com/category/mobile`.
+
+- Production config: `config.real/sources.yaml`
+- Default config: `config/sources.yaml`
+- Parser: `pricecompare/sources/farnaa.py`
+- Offline fixture: `fixtures/farnaa_mobile.html`
+- Tests: `tests/test_farnaa.py`
+
+The parser uses Farnaa's embedded `window.productAnalyticsData` as the structured catalog source and enriches records from rendered product cards with product URL/image/color. Farnaa declares prices in toman. Product and variant IDs are kept stable and price is never part of the ID.
+
+Run only Farnaa:
+
+```bash
+python -m pricecompare --config-dir config.real run --dry-run --only-source farnaa
+```
+
+Run the Farnaa parser tests:
+
+```bash
+pytest -q tests/test_farnaa.py
+```

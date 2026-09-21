@@ -1,24 +1,34 @@
-# REAL sources. Run with:  python -m pricecompare --config-dir config.real run --dry-run
 sources:
-  - name: eways
-    type: eways
-    currency_unit: rial            # Eways lists RIAL; converted to toman exactly once by the pipeline
-    priority: 10                   # lower wins price ties
-    min_expected_products: 20
-    username_env: EWAYS_USERNAME
-    password_env: EWAYS_PASSWORD
-    selected_ids: "16777:all-allz" # category selection string from the original project
-    max_pages: 50
-    details: none                  # titles already carry storage/RAM/colour; 'candidates' fetches spec pages (slow for a whole catalog)
-  - name: hamrahtel
-    type: hamrahtel
-    currency_unit: toman
-    priority: 20
-    min_expected_products: 20
-    categories: [mobile]
-    strategy: auto                # auto = GraphQL API of the site (exact prices/stock), page text as fallback
-    # product_url_template: "https://hamrahtel.com/...{slug}"   # once the real product URL pattern is known
-    page_timeout_ms: 90000
-    scrape_attempts: 3
-    max_scrolls: 20
-    legacy_skip_items: 25
+- name: eways
+  type: eways
+  currency_unit: rial
+  priority: 10
+  min_expected_products: 20
+  username_env: EWAYS_USERNAME
+  password_env: EWAYS_PASSWORD
+  selected_ids: 16777:all-allz
+  max_pages: 50
+  details: none
+- name: hamrahtel
+  type: hamrahtel
+  currency_unit: toman
+  priority: 20
+  min_expected_products: 20
+  categories:
+  - mobile
+  strategy: auto
+  page_timeout_ms: 90000
+  scrape_attempts: 3
+  max_scrolls: 20
+  legacy_skip_items: 25
+- name: farnaa
+  type: farnaa
+  currency_unit: toman
+  priority: 30
+  min_expected_products: 50
+  degraded_excluded: true
+  url: https://farnaa.com/category/mobile
+  base_url: https://farnaa.com/
+  rate_limit_per_sec: 0.5
+  timeout: 30
+  retries: 3
