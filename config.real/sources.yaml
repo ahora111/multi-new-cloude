@@ -27,8 +27,12 @@ sources:
   priority: 30
   min_expected_products: 50
   degraded_excluded: true
-  url: https://farnaa.com/category/mobile
+  url: https://farnaa.com/category/mobile?availablestock=true
   base_url: https://farnaa.com/
   rate_limit_per_sec: 0.5
   timeout: 30
   retries: 3
+  in_stock_values:
+  - in stock
+  out_of_stock_values:
+  - out of stock
