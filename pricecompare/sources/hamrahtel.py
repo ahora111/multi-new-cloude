@@ -17,6 +17,7 @@ import importlib
 import json
 from types import SimpleNamespace
 from .base import Source
+from ..extract import Extractor
 
 
 def _scraper():
@@ -188,12 +189,32 @@ class HamrahtelSource(Source):
                 recs, used = graph, "graphql"
             elif strategy == "text":
                 recs, used = text, "text"
-            else:                                                    # auto: prefer the API, sanity-check against the page
+            else:                                                    # auto: prefer the API, but supplement missing variants from page text
                 use_graph = bool(graph) and len(graph) >= 0.7 * len(text)
-                recs, used = (graph, "graphql") if use_graph else (text, "text")
+                if use_graph:
+                    # The GraphQL catalog can occasionally omit a rendered variant even
+                    # though the browser page contains it (for example iPhone 17
+                    # "Sage Green"). Keep the API as the primary source, but recover
+                    # text-only variants by canonical product/variant identity.
+                    ex = Extractor(getattr(self.settings, "dictionaries_file", None))
+
+                    def identity(row):
+                        a = ex.parse(row.get("title", ""), row.get("brand", ""), row.get("color", ""),
+                                     row.get("storage", ""), row.get("ram", ""))
+                        return (a.brand, tuple(sorted(a.core)), tuple(a.tiers), a.storage_gb, a.ram_gb,
+                                a.region, a.network, a.condition, a.color or "unknown")
+
+                    graph_ids = {identity(r) for r in graph}
+                    supplement = [r for r in text if identity(r) not in graph_ids]
+                    recs = graph + supplement
+                    used = "graphql+text-supplement" if supplement else "graphql"
+                else:
+                    recs, used = text, "text"
             self.note = f"strategy={used} (graphql={len(graph)}, text={len(text)})"
             if strategy == "auto" and used == "text" and graph:
                 self.note += " — GraphQL result looked incomplete, used the page text"
+            elif strategy == "auto" and used == "graphql+text-supplement":
+                self.note += " — GraphQL primary + missing page variants supplemented"
         if not recs:
             raise RuntimeError("Hamrahtel returned zero products (site unreachable, blocked, or page layout changed)")
         self.raw_count = len(recs)

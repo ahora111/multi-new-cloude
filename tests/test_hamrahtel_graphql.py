@@ -130,3 +130,25 @@ def test_end_to_end_graphql_prices_and_stock(tmp_path, monkeypatch):
     assert by["a17"] == {"black": 47_299_000}                          # gray is out of stock (quantity 0): no winner
     assert by["ip17"] == {"blue": 348_990_000}
     assert res.doc["sources"][0]["note"].startswith("strategy=graphql")
+
+
+def test_auto_supplements_graphql_when_rendered_page_has_sage_green_variant(monkeypatch):
+    sc, hm = _mods()
+    if not sc:
+        return
+    nodes = []
+    lines = []
+    for i in range(10):
+        title = f"iPhone 17 {256 + i}GB CH/A Non Active"
+        color = "Blue"
+        nodes.append(node(title, f"iphone-17-{256+i}", [variant(f"v-{i}", color, 345500000.0 + i, 8)]))
+        lines += [title, color, f"{345500000 + i:,}", "افزودن"]
+    # The rendered page contains one extra variant which GraphQL omitted.
+    lines += ["iPhone 17 256GB CH/A Non Active", "Sage Green", "345٬990٬000", "افزودن"]
+    src = _plugin(monkeypatch, hm.nodes_from_json(payload(*nodes)), lines)
+    offers = src.fetch([])
+    assert len(offers) == 11
+    by_color = {o.raw_color: o.price_raw for o in offers if o.raw_title.startswith("iPhone 17 256GB")}
+    assert by_color["Blue"] == 345500000.0
+    assert by_color["Sage Green"] == 345990000.0
+    assert src.note.startswith("strategy=graphql+text-supplement")
