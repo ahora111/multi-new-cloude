@@ -109,8 +109,29 @@ def _line(v, key, changes, last_sent, show_links, noisy):
     line = f"🔹 {v['variant']}: 🏆 {w['source']} {money(w['price_toman'])}"
     if v.get("single_source"):
         line += " (تک‌منبع)"
-    elif r:
-        line += f" | بعدی {r['source']} {money(r['price_toman'])}"
+    else:
+        # Telegram should show every valid source for the variant, not only
+        # winner + runner-up. The detailed report already keeps all offers;
+        # this makes the concise Telegram view consistent with it.
+        offers = [
+            o for o in v.get("offers", [])
+            if o.get("valid") and not o.get("suspect") and o.get("price_toman") is not None
+        ]
+        # Keep one offer per source (lowest valid price), while keeping the
+        # winner first even if the internal offer order changes.
+        by_source = {}
+        for o in offers:
+            prev = by_source.get(o["source"])
+            if prev is None or o["price_toman"] < prev["price_toman"]:
+                by_source[o["source"]] = o
+        winner_key = (w.get("source"), w.get("offer_id"))
+        others = [
+            o for o in by_source.values()
+            if (o.get("source"), o.get("offer_id")) != winner_key
+        ]
+        others.sort(key=lambda o: (o["price_toman"], o["source"]))
+        for o in others:
+            line += f" | {o['source']} {money(o['price_toman'])}"
     if changes is not None and key in changes:
         old = changes[key]
         line += " 🆕" if old is None else f" ({'▼' if w['price_toman'] < old else '▲'} قبلاً {money(old)})"
