@@ -51,6 +51,20 @@ def test_nodes_are_found_anywhere_and_variants_become_records():
     assert by["v3"]["url"] == "https://h/x"
 
 
+def test_graphql_structured_color_attribute_preserves_sage_green():
+    sc, hm = _mods()
+    if not sc:
+        return
+    sage = node("iPhone 17 256GB CH/A Non Active", "iphone-17-256",
+                [variant("sage-1", "variant-internal-name", 345990000.0, 7)])
+    sage["variants"][0]["attributes"] = [
+        {"attribute": {"name": "رنگ", "slug": "color"},
+         "values": [{"name": " Sage Green", "value": "#9CAF88"}]}
+    ]
+    recs = hm.records_from_nodes([sage], link="L")
+    assert recs[0]["color"] == "Sage Green"
+
+
 def test_product_url_template_and_duplicate_variants():
     sc, hm = _mods()
     if not sc:

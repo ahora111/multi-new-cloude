@@ -53,6 +53,30 @@ def nodes_from_json(payload) -> list:
     return out
 
 
+def _variant_color(variant) -> str:
+    """Extract the colour from structured GraphQL attributes, with name fallback."""
+    attrs = variant.get("attributes") if isinstance(variant, dict) else None
+    if isinstance(attrs, list):
+        for item in attrs:
+            if not isinstance(item, dict):
+                continue
+            attr = item.get("attribute") or {}
+            attr_name = str(attr.get("name") or "").strip().lower()
+            attr_slug = str(attr.get("slug") or "").strip().lower()
+            if attr_slug not in {"color", "colour"} and attr_name not in {"color", "colour", "رنگ"}:
+                continue
+            values = item.get("values") or []
+            if isinstance(values, list):
+                for value in values:
+                    if isinstance(value, dict):
+                        name = str(value.get("name") or value.get("value") or "").strip()
+                    else:
+                        name = str(value or "").strip()
+                    if name:
+                        return name
+    return str(variant.get("name") or "").strip()
+
+
 def records_from_nodes(nodes, link="", url_template="") -> list:
     """One record per product VARIANT (= colour). Numbers, colour, and real stock come straight from the API."""
     seen, recs = set(), []
@@ -74,7 +98,7 @@ def records_from_nodes(nodes, link="", url_template="") -> list:
                          and (qty is None or qty > 0))
             recs.append({"id": vid, "title": title, "price": amount, "stock": "in_stock" if available else "out_of_stock",
                          "url": url_template.format(slug=slug) if (url_template and slug) else link,
-                         "color": str(v.get("name") or "").strip(), "extra": {"quantity": qty, "slug": slug}})
+                         "color": _variant_color(v), "extra": {"quantity": qty, "slug": slug}})
     return recs
 
 
