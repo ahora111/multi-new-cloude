@@ -8,6 +8,7 @@ from pathlib import Path
 from . import history, report, telegram
 from .config import ConfigError, load_discovery, load_overrides, load_settings, load_sources, load_watchlist
 from .discovery import discover
+from .canonical import strong_identifier
 from .extract import Extractor
 from .lock import RunLock
 from .matcher import AUTO, MatchResult, assign
@@ -148,7 +149,7 @@ def _run_locked(settings, ex, watchlist, source_cfgs, overrides, outdir, dry_run
     all_items = list(watchlist) + dyn_items
     dyn_ids = {w.id for w in dyn_items}
     priorities = {c.name: c.priority for c in source_cfgs}
-    products = [build_product(w, matched[w.id], priorities, settings, now, degraded) for w in all_items]
+    products = [build_product(w, matched[w.id], priorities, settings, now, degraded, watch_attrs.get(w.id)) for w in all_items]
     for p in products:
         p["origin"] = "discovered" if p["id"] in dyn_ids else "watchlist"
     if discovery.enabled and discovery.min_sources > 1:
@@ -172,6 +173,26 @@ def _run_locked(settings, ex, watchlist, source_cfgs, overrides, outdir, dry_run
         "suspect_offers": sum(o["suspect"] for p in products for v in p["variants"] for o in v["offers"]),
         "needs_review_variants": sum(v["needs_review"] for p in products for v in p["variants"])})
     run_at = now.isoformat()
+    # Attach an auditable, source-independent identity trace to every match row.
+    offer_by_key = {(o.source, str(o.source_offer_id)): o for o in offers}
+    for row in match_report:
+        off = offer_by_key.get((row.get("source"), str(row.get("offer_id"))))
+        if not off:
+            continue
+        row.update({
+            "normalized_title": ex.normalize_text(off.raw_title),
+            "brand": off.brand,
+            "model": " ".join(off.model_core),
+            "tiers": list(off.tiers),
+            "ram_gb": off.ram_gb,
+            "storage_gb": off.storage_gb,
+            "network": off.network,
+            "raw_color": off.raw_color,
+            "canonical_color": off.color or "unknown",
+            "canonical_product_key": next((p.get("canonical_product_key") for p in products
+                                            if any(o.get("source") == off.source and o.get("offer_id") == off.source_offer_id
+                                                   for v in p.get("variants", []) for o in v.get("offers", []))), None),
+        })
     doc = report.build_document(run_at, products, not_found, review_queue, status, warnings)
     doc["summary"] = summary
     run_summary = {"run_at": run_at, "summary": summary, "sources": status, "warnings": warnings}

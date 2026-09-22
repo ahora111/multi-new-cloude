@@ -34,7 +34,7 @@ def _slug(*parts) -> str:
 class _Cluster:
     def __init__(self, seed, attrs, watch):
         self.watch, self.attrs, self.members = watch, attrs, []
-        self.regions, self.conds = set(), set()
+        self.regions, self.conds, self.networks, self.strong_ids = set(), set(), set(), set()
 
     def add(self, o):
         self.members.append(o)
@@ -42,25 +42,49 @@ class _Cluster:
             self.regions.add(o.region)
         if o.condition:
             self.conds.add(o.condition)
+        if o.network:
+            self.networks.add(o.network)
+        from .canonical import strong_identifier
+        sid = strong_identifier(o)
+        if sid:
+            self.strong_ids.add(sid)
 
 
 def _joins(o, cl, settings) -> bool:
     w = cl.watch
-    if o.storage_gb != w.storage_gb:                            # unknown storage never joins a known one
+    from .canonical import strong_identifier
+    sid = strong_identifier(o)
+    # A valid cross-source EAN/GTIN is the strongest identity signal.
+    if sid and sid in cl.strong_ids:
+        return True
+    if o.storage_gb != w.storage_gb:
         return False
-    if o.brand != "apple" and (o.ram_gb is None) != (w.ram_gb is None):
-        return False                                            # Android RAM variants are different products
+    if o.brand != w.brand:
+        return False
+    if o.ram_gb is not None and w.ram_gb is not None and o.ram_gb != w.ram_gb:
+        return False
+    if (o.ram_gb is None) != (w.ram_gb is None) and o.brand != "apple":
+        return False
     if o.region and cl.regions and o.region not in cl.regions:
         return False
     if o.condition and cl.conds and o.condition not in cl.conds:
         return False
-    return evaluate(o, w, cl.attrs, settings).status == AUTO   # region/condition are wildcards here (watch has none)
+    # Unlike an unknown value, two different known networks must never merge.
+    if (o.network is None or o.network == "") and cl.networks:
+        return False
+    if o.network and cl.networks and o.network not in cl.networks:
+        return False
+    if o.network and not cl.networks and getattr(w, "network", ""):
+        if o.network != w.network:
+            return False
+    return evaluate(o, w, cl.attrs, settings).status == AUTO
 
 
 def discover(offers, ex, settings, cfg, reserved_ids=()):
     """Return (watch_items, watch_attrs_by_id, members_by_id). Unknown region/activation is a wildcard; two DIFFERENT
     known regions/activations never share a product."""
-    usable = [o for o in offers if o.brand and o.model_core and o.price_toman]
+    from .canonical import strong_identifier
+    usable = [o for o in offers if o.price_toman and ((o.brand and o.model_core) or strong_identifier(o))]
     if cfg.brands:
         usable = [o for o in usable if o.brand in cfg.brands]
     if cfg.exclude_regex:
@@ -79,6 +103,7 @@ def discover(offers, ex, settings, cfg, reserved_ids=()):
                 wid, n = f"{base}-{n}", n + 1
             taken.add(wid)
             w = WatchItem(id=wid, brand=o.brand, model=canonical, storage_gb=o.storage_gb, ram_gb=o.ram_gb, colors=["any"])
+            w.network = o.network
             cl = _Cluster(o, attrs, w)
             clusters.append(cl)
         cl.add(o)

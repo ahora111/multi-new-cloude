@@ -18,6 +18,20 @@ token_map:
   شیائومی: xiaomi
   هواوی: huawei
   آنر: honor
+  گوگل: google
+  وان پلاس: oneplus
+  نوکیا: nokia
+  موتورولا: motorola
+  سونی: sony
+  ریلمی: realme
+  تکنو: tecno
+  اینفینیکس: infinix
+  ویوو: vivo
+  اوپو: oppo
+  ایسوس: asus
+  لنوو: lenovo
+  تی سی ال: tcl
+  هانوفر: hanofer
   رم: ram
   ظرفیت: capacity
   حافظه: memory
@@ -49,11 +63,20 @@ brands:
   asus: [asus]
   lenovo: [lenovo]
   tcl: [tcl]
+  hanofer: [hanofer]
 # canonical brand words removed from the model core (aliases such as galaxy/iphone/redmi stay)
-brand_drop_words: [apple, samsung, xiaomi, huawei, honor, google, oneplus, nokia, motorola, sony, realme, tecno, infinix, vivo, oppo, asus, lenovo, tcl]
+brand_drop_words: [apple, samsung, xiaomi, huawei, honor, google, oneplus, nokia, motorola, sony, realme, tecno, infinix, vivo, oppo, asus, lenovo, tcl, hanofer]
 # tier words: must be IDENTICAL on both sides of a match (hard constraint)
 tiers: [pro, max, plus, ultra, air, fe, mini, lite, se, edge, fold, flip, neo, turbo, prime, gt]
 colors:
+  titanium_black: [titanium black]
+  titanium_gray: [titanium gray]
+  deep_blue: [deep blue]
+  midnight: [midnight]
+  starlight: [starlight]
+  phantom_black: [phantom black]
+  cream: [cream]
+  mint: [mint]
   black: [black, black titanium, مشکی, سیاه, space black, jet black, تیتانیوم - مشکی, تیتانیوم مشکی]
   white titanium: [white titanium]
   natural titanium: [natural titanium]
@@ -66,7 +89,8 @@ colors:
   green: [green, سبز]
   red: [red, قرمز]
   gray: [gray, grey, خاکستری, طوسی]
-  purple: [purple, بنفش, lavender]
+  purple: [purple, بنفش]
+  lavender: [lavender, یاسی]
   pink: [pink, صورتی]
   gold: [gold, طلایی]
   silver: [silver, نقره ای]

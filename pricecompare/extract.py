@@ -144,7 +144,14 @@ class Extractor:
             t = t.replace(m.group(0), " ", 1)
         caps = list(re.finditer(r"(\d+(?:\.\d+)?)\s*(gb|tb)(?!\w)", t))
         if caps:
-            a.storage_gb = max(self._gb(c.group(1), c.group(2)) for c in caps)
+            values = [(self._gb(c.group(1), c.group(2)), c) for c in caps]
+            a.storage_gb = max(v for v, _ in values)
+            # Common cross-source shorthand: "8GB 256GB" means RAM 8GB +
+            # storage 256GB. Only infer RAM from an unambiguous phone-RAM
+            # range; never turn a second large storage capacity into RAM.
+            ram_candidates = [v for v, _ in values if v <= 32 and v in {1,2,3,4,6,8,12,16,18,24,32}]
+            if len(values) >= 2 and len(ram_candidates) == 1:
+                a.ram_gb = ram_candidates[0]
             for c in reversed(caps):
                 t = t[:c.start()] + " " + t[c.end():]
 

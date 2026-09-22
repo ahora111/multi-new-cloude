@@ -60,7 +60,7 @@ def test_all_output_files_written_and_csv_is_clean(tmp_path):
     for f in ("output.json", "report.csv", "report.md", "run_summary.json", "matching_report.json"):
         assert (out / f).exists(), f
     rows = (out / "report.csv").read_text(encoding="utf-8").splitlines()
-    assert rows[0].lstrip("\ufeff").startswith("product_id,model,variant,winner_source") and len(rows) == 1 + 6
+    assert rows[0].lstrip("\ufeff").startswith("product_id,model,variant,winner_source") and len(rows) == 1 + 8
     assert "🏆" in (out / "report.md").read_text(encoding="utf-8")
 
 
@@ -227,11 +227,12 @@ def test_color_merge_lets_differently_named_colours_compete(tmp_path):
     wl = [{"id": "x", "brand": "apple", "model": "iPhone 17", "storage": 256}]
     cfg, base = make_project(tmp_path, watchlist=wl)
     v0 = {v["variant"]: v for v in run(cfg, base_dir=base).doc["products"][0]["variants"]}
-    assert set(v0) == {"blue", "black"}
+    assert set(v0) == {"blue", "black", "بدون رنگ/مشخصه"}
     (tmp_path / "config" / "overrides.yaml").write_text(_y.safe_dump({"color_merge": [{"watch_id": "x", "colors": ["blue"], "as": "black"}]}), encoding="utf-8")
     v1 = {v["variant"]: v for v in run(cfg, base_dir=base).doc["products"][0]["variants"]}
-    assert set(v1) == {"black"}
+    assert set(v1) == {"black", "بدون رنگ/مشخصه"}
     assert len(v1["black"]["offers"]) == len(v0["black"]["offers"]) + len(v0["blue"]["offers"])
+    assert len(v1["بدون رنگ/مشخصه"]["offers"]) == len(v0["بدون رنگ/مشخصه"]["offers"])
 
 
 def test_color_merge_validation(tmp_path):

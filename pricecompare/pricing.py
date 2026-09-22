@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from itertools import combinations
 from statistics import median
 from .models import IN_STOCK
+from .canonical import product_key_from_watch, variant_key as canonical_variant_key
 
 
 def variant_parts(off, watch, include=frozenset()) -> dict:
@@ -49,7 +50,7 @@ def _num(v):
 
 def _offer_dict(off, reason, suspect):
     return {"source": off.source, "offer_id": off.source_offer_id, "title": off.raw_title,
-            "color": off.color, "price_raw": _num(off.price_raw), "currency_unit_raw": off.currency_unit_raw,
+            "raw_color": off.raw_color, "canonical_color": off.color, "color": off.color, "price_raw": _num(off.price_raw), "currency_unit_raw": off.currency_unit_raw,
             "price_toman": _num(off.price_toman), "stock": off.stock, "url": off.url,
             "valid": reason is None, "excluded_reason": reason, "suspect": suspect}
 
@@ -121,7 +122,7 @@ def product_label(w) -> str:
     return " ".join(parts)
 
 
-def build_product(watch, matched, priorities, settings, now, degraded):
+def build_product(watch, matched, priorities, settings, now, degraded, attrs=None):
     """matched: list[(offer, MatchResult)] for this watch item."""
     groups, ignored, kept = {}, [], []
     for off, _ in matched:
@@ -130,39 +131,12 @@ def build_product(watch, matched, priorities, settings, now, degraded):
             continue
         kept.append(off)
 
-    # When colour is open (colors: [any]), a source may omit colour entirely.
-    # Do not create a fake extra colour variant for that offer, but do not drop
-    # it either: fold unknown-colour offers into the concrete colour variant
-    # with the lowest current offer price. This keeps the product variant list
-    # stable while allowing a colour-agnostic source (such as Eways) to
-    # participate in the cheapest-price comparison.
-    if watch.colors == ["any"]:
-        concrete = [o for o in kept if o.color]
-        unknown = [o for o in kept if not o.color]
-        if concrete and unknown:
-            groups_for_anchor = {}
-            for o in concrete:
-                groups_for_anchor.setdefault(o.color, []).append(o)
-            anchor = min(groups_for_anchor, key=lambda c: min(
-                (o.price_toman for o in groups_for_anchor[c] if o.price_toman is not None),
-                default=float("inf")))
-            kept = concrete + unknown
-            # Mark the chosen anchor so grouping below can place unknown-colour
-            # offers with it without changing the concrete colour itself.
-            unknown_anchor = anchor
-        else:
-            unknown_anchor = None
-    else:
-        unknown_anchor = None
-
     # storage / RAM split variants only when the watchlist leaves them open AND offers really carry >= 2 different
     # known values. (One shop stating RAM 8 while another omits it must NOT create two fake variants.)
     include = frozenset(a for a in ("storage_gb", "ram_gb")
                         if getattr(watch, a) is None and len({getattr(o, a) for o in kept if getattr(o, a) is not None}) >= 2)
     for off in kept:
         parts = variant_parts(off, watch, include)
-        if unknown_anchor is not None and not off.color:
-            parts["color"] = unknown_anchor
         groups.setdefault(tuple(parts.items()), []).append(off)
     variants = []
     for key, offs in sorted(groups.items(), key=lambda kv: str(kv[0])):
@@ -181,7 +155,11 @@ def build_product(watch, matched, priorities, settings, now, degraded):
         status = "found"
     else:
         status = "no_valid_price"
-    return {"id": watch.id, "label": product_label(watch), "brand": watch.brand, "model": watch.model,
+    canonical_id = product_key_from_watch(watch, attrs) if kept else watch.id
+    for v in variants:
+        color = v.get("attributes", {}).get("color") or "unknown"
+        v["canonical_variant_key"] = f"{canonical_id}_{color}"
+    return {"id": watch.id, "canonical_product_key": canonical_id, "label": product_label(watch), "brand": watch.brand, "model": watch.model,
             "storage_gb": watch.storage_gb,
             "ram_gb": watch.ram_gb, "region": watch.region, "condition": watch.condition,
             "status": status, "variants": variants, "ignored_offers": ignored}
