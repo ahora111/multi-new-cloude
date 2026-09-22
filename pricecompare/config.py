@@ -146,8 +146,7 @@ def load_watchlist(config_dir: str, extractor) -> list:
         colors = r.get("colors") or ["any"]
         colors = ["any"] if "any" in colors else [extractor.color_of(c, explicit=True) for c in colors]
         out.append(WatchItem(
-            id=str(r["id"]), brand=extractor.brand_alias.get(extractor.normalize_text(r["brand"]),
-                                                              extractor.normalize_text(r["brand"])),
+            id=str(r["id"]), brand=extractor.canonical_brand(r["brand"]) or extractor.normalize_text(r["brand"]),
             model=str(r["model"]), storage_gb=_opt_int(r.get("storage"), where + ".storage"),
             ram_gb=_opt_int(r.get("ram"), where + ".ram"), region=region, condition=cond,
             colors=colors, max_price=r.get("max_price"), barcodes=[str(b) for b in r.get("barcodes") or []]))

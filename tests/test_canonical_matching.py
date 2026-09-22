@@ -54,7 +54,7 @@ def test_color_canonicalization_and_unknown_are_strict():
     assert EX.color_of("Black", explicit=True) != EX.color_of("White", explicit=True)
     assert EX.color_of("Titanium Gray", explicit=True) == "titanium_gray"
     assert EX.color_of("Natural Titanium", explicit=True) == "natural titanium"
-    assert EX.color_of("Lavender", explicit=True) == "lavender"
+    assert EX.color_of("Lavender", explicit=True) == "purple"
 
 
 def test_model_hard_boundaries():
@@ -162,3 +162,70 @@ def test_valid_gtin_is_cross_source_identity_but_store_product_id_is_not():
     items, _, members = discover(offers, EX, ST, Discovery(enabled=True))
     assert len(items) == 1
     assert {o.source for o in members[items[0].id]} == {"eways", "farnaa"}
+
+
+def test_central_color_aliases_are_language_independent():
+    pairs = [
+        ("Lavender", "Purple", "بنفش", "purple"),
+        ("Sage Green", "Green", "سبز", "green"),
+        ("Black", "مشکی", "سیاه", "black"),
+        ("White", "سفید", "سفید", "white"),
+        ("Blue", "آبی", "آبی", "blue"),
+        ("Red", "قرمز", "قرمز", "red"),
+        ("Yellow", "زرد", "زرد", "yellow"),
+        ("Orange", "نارنجی", "نارنجی", "orange"),
+        ("Pink", "صورتی", "صورتی", "pink"),
+        ("Gray", "Grey", "خاکستری", "gray"),
+        ("طوسی", "Grey", "طوسی", "gray"),
+        ("Silver", "نقره‌ای", "نقره ای", "silver"),
+        ("Gold", "طلایی", "طلایی", "gold"),
+        ("Brown", "قهوه‌ای", "قهوه ای", "brown"),
+    ]
+    for en, alt, fa, expected in pairs:
+        assert EX.color_of(en, explicit=True) == expected
+        assert EX.color_of(alt, explicit=True) == expected
+        assert EX.color_of(fa, explicit=True) == expected
+
+
+def test_central_brand_aliases_are_language_independent():
+    pairs = {
+        "comtel": ("Comtel", "کامتل"),
+        "zhivaco": ("Zhivaco", "ژیواکو"),
+        "jubiter": ("Jphone", "Jubiter", "ژوبیتر"),
+        "vocal": ("Vocal", "وکال"),
+        "nemo": ("Nemo", "نمو"),
+        "middcell": ("Middcell", "میدسل"),
+        "glx": ("GLX", "جی ال ایکس"),
+        "tch": ("TCH", "تی سی اچ"),
+        "general_luxe": ("General Luxe", "جنرال لوکس"),
+        "bloom": ("Bloom", "بلووم"),
+        "orod": ("Orod", "اُرد"),
+        "elevia": ("Elevia", "الویا"),
+        "tecno": ("Tecno", "تکنو"),
+    }
+    for expected, aliases in pairs.items():
+        for alias in aliases:
+            assert EX.canonical_brand(alias) == expected
+
+
+def test_brand_language_does_not_split_product():
+    offers = [
+        off("a", "1", "Tecno Spark 20 8GB 256GB Black", 1_000_000),
+        off("b", "2", "تکنو Spark 20 8GB 256GB مشکی", 1_100_000),
+    ]
+    assert offers[0].brand == offers[1].brand == "tecno"
+    items, _, members = discover(offers, EX, ST, Discovery(enabled=True))
+    assert len(items) == 1
+    assert {o.source for o in members[items[0].id]} == {"a", "b"}
+
+
+def test_color_language_does_not_split_variant():
+    offers = [
+        off("a", "1", "Samsung A56 8GB 256GB Purple", 1_000_000),
+        off("b", "2", "Samsung A56 8GB 256GB بنفش", 1_100_000),
+        off("c", "3", "Samsung A56 8GB 256GB Lavender", 900_000),
+    ]
+    assert {o.color for o in offers} == {"purple"}
+    items, _, members = discover(offers, EX, ST, Discovery(enabled=True))
+    assert len(items) == 1
+    assert len(members[items[0].id]) == 3
