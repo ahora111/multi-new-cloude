@@ -20,7 +20,21 @@ from .base import Source
 _FA_DIGITS = str.maketrans("۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩", "01234567890123456789")
 _PRICE_RE = re.compile(r"^[\d۰-۹٠-٩][\d۰-۹٠-٩.,٬،٫]*\s*(?:تومان|تومن|ریال|rial|toman)?$", re.I)
 _STOCK_IN = {"موجود", "موجود است", "available", "in stock", "instock"}
-_STOCK_OUT = {"ناموجود", "ناموجود است", "out of stock", "unavailable", "sold out"}
+_STOCK_OUT = {"ناموجود", "ناموجود است", "out of stock", "unavailable", "sold out", "not available"}
+_VARIANT_NOISE = {
+    "تومان", "تومن", "ریال", "rial", "toman", "قیمت", "محدوده قیمت",
+    "price", "price range", "از", "تا", "افزودن به سبد", "add to cart",
+    "خرید", "buy", "انتخاب", "انتخاب و سفارش", "choose and order",
+    "موجود", "موجود است", "ناموجود", "ناموجود است", "available",
+    "in stock", "out of stock", "unavailable", "sold out", "ناموجودی",
+}
+_COLOR_TERMS = {
+    "black", "white", "blue", "green", "gray", "grey", "red", "pink", "purple",
+    "lavender", "lilac", "gold", "silver", "orange", "yellow", "brown", "cream",
+    "mint", "navy", "midnight", "starlight", "titanium", "مشکی", "سیاه", "سفید",
+    "آبی", "ابی", "سبز", "خاکستری", "طوسی", "قرمز", "صورتی", "بنفش", "یاسی",
+    "طلایی", "نقره ای", "نقره‌ای", "نارنجی", "زرد", "قهوه ای", "قهوه‌ای", "لیمویی",
+}
 
 
 def _clean(v) -> str:
@@ -62,12 +76,36 @@ def _meta(soup, prop):
     return _clean(node.get("content")) if node else ""
 
 
-def _variant_rows(body_lines):
-    """Parse ExonTel's visible 'انتخاب و سفارش' variant block.
+def _looks_like_variant_label(value: str) -> bool:
+    """Return True only for a plausible concrete colour/variant label.
 
-    Current live pages expose each choice as: colour -> price/ناموجود -> add-to-cart.
-    The parser deliberately accepts English equivalents too and never invents a
-    colour when the page does not expose one.
+    ExonTel pages contain many price/UI labels inside the same rendered block.
+    Treating every line before a price as a colour created hundreds of fake
+    variants (for example "قیمت", "محدوده قیمت" and "تومان").
+    """
+    s = _clean(value)
+    if not s or s.lower() in _VARIANT_NOISE:
+        return False
+    if _price_text(s) or _stock(s):
+        return False
+    if re.fullmatch(r"[\d۰-۹٠-٩\s]+(?:تنوع|variants?)", s, re.I):
+        return False
+    low = s.lower()
+    if any(term in low for term in _COLOR_TERMS):
+        return True
+    # Preserve explicit English colour labels such as "Onyx Black" or
+    # "Light Blue" even when the exact phrase is not in the dictionary.
+    if re.search(r"\b(black|white|blue|green|gray|grey|red|pink|purple|gold|silver|orange|yellow|brown|cream|mint|navy)\b", low):
+        return True
+    return False
+
+
+def _variant_rows(body_lines):
+    """Parse only real colour choices from ExonTel's order block.
+
+    A valid row is colour -> (price | stock marker) -> optional add-to-cart.
+    The add-to-cart control itself is positive stock evidence when no explicit
+    stock marker is present.
     """
     lines = [_clean(x) for x in body_lines if _clean(x)]
     try:
@@ -79,14 +117,23 @@ def _variant_rows(body_lines):
     i = start
     while i < end:
         color = lines[i]
-        if color in {"افزودن به سبد", "Add to cart"} or re.fullmatch(r"\d+\s+تنوع", color):
+        if not _looks_like_variant_label(color):
             i += 1
             continue
+        price = None
+        stock = None
+        marker = ""
         if i + 1 < end:
-            price = _price_text(lines[i + 1])
-            stock = _stock(lines[i + 1])
+            marker = lines[i + 1]
+            price = _price_text(marker)
+            stock = _stock(marker)
             if price or stock:
-                rows.append((color, lines[i + 1], price, stock))
+                if i + 2 < end and lines[i + 2] in {"افزودن به سبد", "Add to cart"}:
+                    if stock is None:
+                        stock = "in_stock"
+                    marker = f"{marker} | {lines[i + 2]}"
+                    i += 1
+                rows.append((color, marker, price, stock))
                 i += 2
                 if i < end and lines[i] in {"افزودن به سبد", "Add to cart"}:
                     i += 1
@@ -141,7 +188,7 @@ def parse_product_html(html: str, url: str = "") -> list[dict]:
                 "id": f"{product_id}:v{idx}" if product_id else f"{title}:v{idx}",
                 "title": title,
                 "price": price if price is not None else base_price,
-                "stock": stock or base_stock,
+                "stock": stock or "unknown",
                 "url": url,
                 "image": image,
                 "color": raw_color,

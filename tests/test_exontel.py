@@ -126,3 +126,34 @@ def test_exontel_cross_source_pipeline_one_canonical_product(tmp_path):
     black = next(v for v in p["variants"] if v["variant"] == "black")
     assert {o["source"] for o in black["offers"]} == {"exontel","eways","hamrahtel","farnaa"}
     assert black["winner"]["source"] == "eways"
+
+
+def test_variant_parser_does_not_turn_price_ui_text_into_colours():
+    html = """
+    <article><h1>Samsung Galaxy A17 128GB RAM 4</h1>
+      <div>انتخاب و سفارش</div>
+      <div>قیمت</div><div>۵۰٬۳۹۰٬۰۰۰ تومان</div>
+      <div>محدوده قیمت</div><div>۵۰٬۳۹۰٬۰۰۰ تومان</div>
+      <div>تومان</div><div>۵۰٬۳۹۰٬۰۰۰ تومان</div>
+      <div>مشکی</div><div>۵۰٬۳۹۰٬۰۰۰ تومان</div><div>افزودن به سبد</div>
+      <h3>توضیحات محصول</h3>
+    </article>
+    """
+    rows = parse_product_html(html, "https://exontel.com/product/exp-regression")
+    assert [r["color"] for r in rows] == ["مشکی"]
+    assert rows[0]["stock"] == "in_stock"
+
+
+def test_variant_without_stock_marker_is_unknown_not_product_level_fallback():
+    html = """
+    <article><h1>Samsung Galaxy A17 128GB RAM 4</h1>
+      <div>موجود</div>
+      <div>انتخاب و سفارش</div>
+      <div>مشکی</div><div>۵۰٬۳۹۰٬۰۰۰ تومان</div>
+      <h3>توضیحات محصول</h3>
+    </article>
+    """
+    rows = parse_product_html(html, "https://exontel.com/product/exp-unknown")
+    assert len(rows) == 1
+    assert rows[0]["color"] == "مشکی"
+    assert rows[0]["stock"] == "unknown"
