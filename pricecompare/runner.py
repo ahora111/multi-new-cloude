@@ -36,6 +36,28 @@ class RunResult:
     catalog_titles: dict = field(default_factory=dict)
 
 
+def dedupe_offers(offers):
+    """Collapse duplicate Offer identities without collapsing legitimate variants.
+
+    Source implementations are responsible for making ``source_offer_id`` variant-level
+    when needed (for example, SKU rather than a shared product id). Once that contract is
+    met, the pipeline key is intentionally only ``(source, source_offer_id)``.
+    """
+    def richness(o):
+        return sum(bool(v) for v in (
+            o.price_raw, o.url, o.image, o.raw_color, o.raw_storage, o.raw_ram,
+            o.raw_brand, o.stock not in ("UNKNOWN", ""),
+        ))
+
+    unique = {}
+    for o in offers:
+        key = (o.source, str(o.source_offer_id))
+        prev = unique.get(key)
+        if prev is None or richness(o) > richness(prev):
+            unique[key] = o
+    return list(unique.values())
+
+
 def enrich(off, ex: Extractor):
     a = ex.parse(off.raw_title, off.raw_brand, off.raw_color, off.raw_storage, off.raw_ram)
     off.brand, off.model_core, off.tiers = a.brand, a.core, a.tiers
@@ -105,6 +127,13 @@ def _run_locked(settings, ex, watchlist, source_cfgs, overrides, outdir, dry_run
             log.error("source %s failed: %s", cfg.name, st["error"])
         st["seconds"] = round(time.monotonic() - t0, 2)
         status.append(st)
+
+    # Enforce the global Offer identity contract at the pipeline boundary. A source may
+    # discover the same product more than once (multiple pages, fallback URLs, or a
+    # rendered/API duplicate), but one (source, source_offer_id) must yield one Offer.
+    # Keep the richest record deterministically rather than letting duplicates reach
+    # matching/pricing/reporting.
+    offers = dedupe_offers(offers)
 
     failed = [s for s in status if s["status"] == "failed"]
     bad = [s for s in status if s["status"] != "ok"]

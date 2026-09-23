@@ -17,7 +17,7 @@ def _cfg(**opts):
 
 def test_kasrapars_fixture_extracts_sale_price_id_url_stock_image_and_fields():
     rows = parse_kasrapars_html(FIXTURE.read_text(encoding="utf-8"), "https://plus.kasrapars.ir/")
-    r = next(x for x in rows if x["id"] == "kp-a56-8256")
+    r = next(x for x in rows if x["id"] == "KP-A56-8256-BLK")
     assert r["price"] == "۱۰۷٬۳۹۰٬۰۰۰ تومان"
     assert r["stock"] == "in_stock"
     assert r["url"].endswith("/product/samsung-galaxy-a56-5g-8256-black")
@@ -28,14 +28,14 @@ def test_kasrapars_fixture_extracts_sale_price_id_url_stock_image_and_fields():
 
 def test_kasrapars_old_price_is_metadata_and_sale_price_is_offer_price():
     rows = parse_kasrapars_html(FIXTURE.read_text(encoding="utf-8"), "https://plus.kasrapars.ir/")
-    r = next(x for x in rows if x["id"] == "kp-a56-8256" and x["color"] == "مشکی")
+    r = next(x for x in rows if x["id"] == "KP-A56-8256-BLK" and x["color"] == "مشکی")
     assert r["price"] == "۱۰۷٬۳۹۰٬۰۰۰ تومان"
     assert r["extra"]["old_price"] == 110_000_000
 
 
 def test_kasrapars_out_of_stock_is_not_in_stock():
     rows = parse_kasrapars_html(FIXTURE.read_text(encoding="utf-8"), "https://plus.kasrapars.ir/")
-    r = next(x for x in rows if x["id"] == "kp-a55-8256")
+    r = next(x for x in rows if x["id"] == "KP-A55-8256-BLK")
     assert r["stock"] == "out_of_stock"
 
 

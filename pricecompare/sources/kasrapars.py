@@ -200,6 +200,8 @@ def _json_record(obj, base_url, fallback_url=""):
     url = _abs(base_url, pick("url", "link", "product_url", "productUrl") or fallback_url)
     pid = str(pick("id", "product_id", "productId", "sku", "code") or "").strip()
     sku = str(pick("sku", "SKU") or "").strip()
+    # Offer identity is variant-level. Prefer SKU/variant id when available so two
+    # colour/SKU variants of one product cannot collapse into one Offer later.
     gtin = str(pick("gtin", "ean", "ean13", "barcode", "upc") or "").strip()
     price = pick("sale_price", "salePrice", "final_price", "finalPrice", "selling_price", "sellingPrice", "price")
     old = pick("old_price", "oldPrice", "regular_price", "regularPrice", "compare_at_price", "compareAtPrice")
@@ -209,7 +211,9 @@ def _json_record(obj, base_url, fallback_url=""):
     image = pick("image", "image_url", "imageUrl", "thumbnail")
     raw = " ".join(str(x) for x in (title, price, stock) if x not in (None, ""))
     unit = _currency_from_text(raw)
-    if not pid:
+    if sku:
+        pid = sku
+    elif not pid:
         pid = _url_id(url) or _canonical_url(url) or _stable_id(url)
     extra = {"sku": sku or None, "gtin": gtin or None, "old_price": parse_price(old) if old else None}
     variant = pick("variant_id", "variantId", "combination_id", "combinationId")
@@ -250,6 +254,10 @@ def parse_kasrapars_html(html: str, base_url: str) -> list:
         url = _abs(base_url, link.get("href")) if link else ""
         pid = _first_attr(node, ("data-product-id", "data-product_id", "data-id", "data-sku", "data-code"))
         sku = _first_attr(node, ("data-sku", "data-product-sku", "data-code"))
+        # A product card may share data-product-id across colour variants; SKU is the
+        # stable Offer identity when it exists.
+        if sku:
+            pid = sku
         brand = _first_attr(node, ("data-brand", "data-brand-name")) or _text(node.select_one(".brand, .product-brand, [itemprop=brand]")) or _field(node, ("brand", "برند"))
         color = _first_attr(node, ("data-color", "data-colour")) or _text(node.select_one(".color, .colour, .product-color, [itemprop=color]")) or _field(node, ("color", "colour", "رنگ"))
         storage = _first_attr(node, ("data-storage", "data-capacity")) or _text(node.select_one(".storage, .capacity, .product-storage")) or _field(node, ("storage", "capacity", "حافظه", "ظرفیت"))
