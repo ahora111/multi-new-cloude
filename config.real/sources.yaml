@@ -64,6 +64,9 @@ sources:
   max_pages: 100
   follow_next: true
   page_query_fallback: true
+  browser_fallback: true
+  page_timeout_ms: 90000
+  browser_max_scrolls: 12
   pagination_param: page
   urls:
   - https://plus.kasrapars.ir/search/category-mobilephone

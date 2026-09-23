@@ -100,3 +100,29 @@ def test_kasrapars_parser_never_invents_missing_fields():
     assert r["brand"] == ""
     assert r["storage"] == ""
     assert r["ram"] == ""
+
+
+def test_kasrapars_browser_fallback_recovers_client_rendered_catalog(monkeypatch):
+    """Regression: an empty HTTP shell must not make KasraPars disappear from Telegram."""
+    from pricecompare.sources import kasrapars as kp
+
+    cfg = _cfg(
+        url="https://plus.kasrapars.ir/search/category-mobilephone",
+        base_url="https://plus.kasrapars.ir/",
+        browser_fallback=True,
+    )
+    src = build_source(cfg, base_dir=str(ROOT))
+
+    html = FIXTURE.read_text(encoding="utf-8")
+    monkeypatch.setattr(src, "read", lambda u: "<html><body><div id='app'></div></body></html>")
+    monkeypatch.setattr(
+        kp,
+        "_browser_fetch_pages",
+        lambda *args, **kwargs: [
+            ("https://plus.kasrapars.ir/search/category-mobilephone", html,
+             kp.parse_kasrapars_html(html, "https://plus.kasrapars.ir/"))
+        ],
+    )
+    rows = src.records([])
+    assert rows and src.raw_count == 3
+    assert src.note.startswith("http+browser-fallback")
