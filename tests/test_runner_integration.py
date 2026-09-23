@@ -51,7 +51,7 @@ def test_not_found_and_summary(tmp_path):
     _go(tmp_path)
     d = _doc(tmp_path)
     assert d["not_found"] == ["pixel-10-pro-256"] and d["schema_version"] == "1.0"
-    assert d["summary"]["products_found"] == 4 and d["summary"]["suspect_offers"] == 1
+    assert d["summary"]["products_found"] == 4 and d["summary"]["suspect_offers"] == 2
 
 
 def test_all_output_files_written_and_csv_is_clean(tmp_path):
@@ -60,7 +60,7 @@ def test_all_output_files_written_and_csv_is_clean(tmp_path):
     for f in ("output.json", "report.csv", "report.md", "run_summary.json", "matching_report.json"):
         assert (out / f).exists(), f
     rows = (out / "report.csv").read_text(encoding="utf-8").splitlines()
-    assert rows[0].lstrip("\ufeff").startswith("product_id,model,variant,winner_source") and len(rows) == 1 + 8
+    assert rows[0].lstrip("\ufeff").startswith("product_id,model,variant,winner_source") and len(rows) == 11
     assert "🏆" in (out / "report.md").read_text(encoding="utf-8")
 
 

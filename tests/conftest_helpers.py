@@ -32,6 +32,10 @@ def make_project(tmp_path, settings=None, sources=None, watchlist=None):
             if source.get("type") == "farnaa":
                 source.pop("url", None)
                 source["path"] = "fixtures/farnaa_mobile.html"
+            if source.get("type") == "exontel":
+                source.pop("url", None)
+                source["path"] = "fixtures/exontel_phones.html"
+                source["min_expected_products"] = 2
         src_path.write_text(yaml.safe_dump(src_data, allow_unicode=True), encoding="utf-8")
     return str(cfg), str(tmp_path)
 

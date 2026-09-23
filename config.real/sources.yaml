@@ -36,3 +36,18 @@ sources:
   - in stock
   out_of_stock_values:
   - out of stock
+- name: exontel
+  type: exontel
+  currency_unit: toman
+  priority: 40
+  min_expected_products: 20
+  degraded_excluded: true
+  url: https://exontel.com/category/phones?available=true
+  base_url: https://exontel.com/
+  rate_limit_per_sec: 0.5
+  timeout: 30
+  retries: 3
+  page_timeout_ms: 90000
+  max_scrolls: 30
+  stable_scrolls: 3
+  max_products: 1000
