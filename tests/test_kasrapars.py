@@ -102,27 +102,25 @@ def test_kasrapars_parser_never_invents_missing_fields():
     assert r["ram"] == ""
 
 
-def test_kasrapars_browser_fallback_recovers_client_rendered_catalog(monkeypatch):
-    """Regression: an empty HTTP shell must not make KasraPars disappear from Telegram."""
-    from pricecompare.sources import kasrapars as kp
-
-    cfg = _cfg(
-        url="https://plus.kasrapars.ir/search/category-mobilephone",
-        base_url="https://plus.kasrapars.ir/",
-        browser_fallback=True,
-    )
-    src = build_source(cfg, base_dir=str(ROOT))
-
-    html = FIXTURE.read_text(encoding="utf-8")
-    monkeypatch.setattr(src, "read", lambda u: "<html><body><div id='app'></div></body></html>")
-    monkeypatch.setattr(
-        kp,
-        "_browser_fetch_pages",
-        lambda *args, **kwargs: [
-            ("https://plus.kasrapars.ir/search/category-mobilephone", html,
-             kp.parse_kasrapars_html(html, "https://plus.kasrapars.ir/"))
-        ],
-    )
-    rows = src.records([])
-    assert rows and src.raw_count == 3
-    assert src.note.startswith("http+browser-fallback")
+def test_kasrapars_browser_api_payload_flattens_parent_product_and_variant():
+    payload = {
+        "products": [{
+            "id": "kp-api-1",
+            "name": "Samsung Galaxy A56 5G 8GB 256GB",
+            "url": "/product/a56-api",
+            "brand": "Samsung",
+            "variants": [{
+                "sku": "KP-API-A56-BLK",
+                "color": "Black",
+                "price": "107390000",
+                "stock": "موجود",
+            }],
+        }]
+    }
+    from pricecompare.sources.kasrapars import _json_response_records
+    rows = _json_response_records(payload, "https://plus.kasrapars.ir/api/products")
+    assert len(rows) == 1
+    assert rows[0]["id"] == "KP-API-A56-BLK"
+    assert rows[0]["title"] == "Samsung Galaxy A56 5G 8GB 256GB"
+    assert rows[0]["color"] == "Black"
+    assert rows[0]["brand"] == "Samsung"

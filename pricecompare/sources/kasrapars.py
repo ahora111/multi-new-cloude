@@ -224,6 +224,44 @@ def _json_record(obj, base_url, fallback_url=""):
             "ram": pick("ram", "ram_gb", "ramGb"), "extra": extra, "currency_detected": unit}
 
 
+
+def _json_response_records(payload, base_url):
+    """Extract offer-like records from API JSON, including nested variant objects.
+
+    Kasra Plus may expose products through a client-side API rather than rendering
+    product cards in the initial HTML.  API payloads often keep the product title
+    on a parent object and price/color/SKU on a nested variant, so this helper
+    carries useful parent fields into variant dictionaries without changing the
+    normal source contract.
+    """
+    records = []
+    def walk(value, parent=None):
+        if isinstance(value, dict):
+            parent = parent or {}
+            inherited = {}
+            for key in ("name", "title", "product_name", "productName", "url", "link", "product_url", "productUrl", "brand", "brand_name", "brandName", "image", "image_url", "imageUrl", "thumbnail"):
+                if value.get(key) not in (None, ""):
+                    inherited[key] = value[key]
+            merged = dict(parent)
+            merged.update(inherited)
+            # A variant/offer may have the price while the parent carries title.
+            if (merged.get("name") or merged.get("title")) and any(value.get(k) not in (None, "") for k in (
+                "price", "sale_price", "salePrice", "final_price", "finalPrice", "selling_price", "sellingPrice"
+            )):
+                candidate = dict(merged)
+                candidate.update(value)
+                rec = _json_record(candidate, base_url)
+                if rec:
+                    records.append(rec)
+            for v in value.values():
+                if isinstance(v, (dict, list)):
+                    walk(v, merged)
+        elif isinstance(value, list):
+            for v in value:
+                walk(v, parent)
+    walk(payload)
+    return _dedupe(records)
+
 def parse_kasrapars_html(html: str, base_url: str) -> list:
     soup = BeautifulSoup(html, "lxml")
     records = []
@@ -314,84 +352,115 @@ def _page_url(url, page, param="page"):
     return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(q), ""))
 
 
-def _playwright():
-    try:
-        from playwright.sync_api import sync_playwright
-        return sync_playwright
-    except ImportError as exc:  # pragma: no cover - environment specific
-        raise RuntimeError(
-            "KasraPars browser fallback needs Playwright: "
-            "pip install playwright && playwright install chromium"
-        ) from exc
-
-
-def _browser_fetch_pages(locations, base_url, max_pages=100, timeout_ms=90000, max_scrolls=12):
-    """Fetch KasraPars through a real Chromium session when plain HTTP HTML is empty.
-
-    KasraPars can return an HTML shell whose product cards are populated client-side.
-    The normal HTTP parser remains the first path; this is only a recovery path so
-    the source does not silently disappear from the Telegram comparison.
-    """
-    sync_playwright = _playwright()
-    pages = []
-    seen_urls = set()
-    with sync_playwright() as pw:
-        browser = pw.chromium.launch(headless=True)
-        context = browser.new_context(
-            viewport={"width": 1440, "height": 1000},
-            locale="fa-IR",
-        )
-        page = context.new_page()
-        try:
-            queue = list(dict.fromkeys(locations))
-            while queue and len(pages) < max_pages:
-                url = queue.pop(0)
-                if not url or url in seen_urls:
-                    continue
-                seen_urls.add(url)
-                try:
-                    page.goto(url, wait_until="domcontentloaded", timeout=timeout_ms)
-                    try:
-                        page.wait_for_load_state("networkidle", timeout=min(timeout_ms, 15000))
-                    except Exception:
-                        pass
-                    # Give client-side catalog code a short chance to render.
-                    page.wait_for_timeout(1200)
-                    stable = 0
-                    previous = 0
-                    for _ in range(max_scrolls):
-                        html = page.content()
-                        rows = parse_kasrapars_html(html, page.url)
-                        pages.append((page.url, html, rows))
-                        count = len(rows)
-                        if count == previous:
-                            stable += 1
-                        else:
-                            stable = 0
-                        previous = count
-                        # Collect ordinary next/page links after rendering.
-                        for href in page.locator("a[href]").evaluate_all(
-                            "els => els.map(e => e.href)"
-                        ):
-                            if href and "kasrapars.ir" in href and href not in seen_urls:
-                                low = href.lower()
-                                if ("page=" in low or "next" in low or "/search/" in low):
-                                    queue.append(href)
-                        if stable >= 2:
-                            break
-                        page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-                        page.wait_for_timeout(700)
-                except Exception:
-                    # Try the next location/page; a transient browser failure must not
-                    # erase records already collected from another URL.
-                    continue
-        finally:
-            browser.close()
-    return pages
-
-
 class KasraParsSource(Source):
     type_name = "kasrapars"
+
+    def _browser_fallback(self, locations, max_scrolls=12):
+        """Use Chromium as a second-stage extractor and capture client-side API JSON.
+
+        The previous fallback only parsed rendered HTML. If the site renders its
+        catalog from XHR/fetch, the DOM can contain no product cards at all.
+        Intercepting JSON responses lets us parse the actual catalog payload.
+        """
+        try:
+            from playwright.sync_api import sync_playwright
+        except Exception as exc:
+            raise RuntimeError("Playwright is required for KasraPars browser fallback") from exc
+
+        records, visited = [], set()
+        api_hits = 0
+        response_urls = []
+        with sync_playwright() as pw:
+            browser = pw.chromium.launch(headless=True)
+            context = browser.new_context(viewport={"width": 1440, "height": 1000}, locale="fa-IR")
+            page = context.new_page()
+
+            def on_response(response):
+                nonlocal api_hits
+                try:
+                    ctype = (response.headers.get("content-type") or "").lower()
+                    url = response.url
+                    interesting = (
+                        "json" in ctype or any(token in url.lower() for token in (
+                            "/api/", "graphql", "ajax", "search", "product", "products", "catalog", "shop"
+                        ))
+                    )
+                    if not interesting or len(response_urls) >= 80:
+                        return
+                    response_urls.append(url)
+                    body = response.text()
+                    if not body or len(body) > 15_000_000:
+                        return
+                    try:
+                        payload = json.loads(body)
+                    except Exception:
+                        return
+                    rows = _json_response_records(payload, url)
+                    if rows:
+                        api_hits += 1
+                        records.extend(rows)
+                except Exception:
+                    # A single failed/opaque browser response must not abort the scrape.
+                    return
+
+            page.on("response", on_response)
+            try:
+                for initial in locations:
+                    try:
+                        page.goto(initial, wait_until="domcontentloaded", timeout=int(self.o.get("page_timeout_ms", 90000)))
+                        try:
+                            page.wait_for_load_state("networkidle", timeout=15000)
+                        except Exception:
+                            pass
+                        page.wait_for_timeout(1800)
+
+                        # Parse whatever was rendered as a secondary path.
+                        rows = parse_kasrapars_html(page.content(), initial)
+                        records.extend(rows)
+
+                        stable = 0
+                        last_height = 0
+                        for _ in range(max_scrolls):
+                            height = page.evaluate("document.body.scrollHeight")
+                            page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+                            page.wait_for_timeout(900)
+                            if height == last_height:
+                                stable += 1
+                            else:
+                                stable = 0
+                            last_height = height
+                            if stable >= 2:
+                                break
+                        rows = parse_kasrapars_html(page.content(), initial)
+                        records.extend(rows)
+
+                        # Follow obvious next-page links when the site uses normal pagination.
+                        links = page.locator("a[href]").all()
+                        for link in links:
+                            try:
+                                href = link.get_attribute("href") or ""
+                                txt = (link.inner_text() or "").strip().lower()
+                                aria = (link.get_attribute("aria-label") or "").lower()
+                                if href and (txt in {"بعدی", "next", ">", "›", "→"} or "next" in aria or "بعد" in aria):
+                                    u = urljoin(initial, href)
+                                    if u not in visited:
+                                        visited.add(u)
+                                        page.goto(u, wait_until="domcontentloaded", timeout=int(self.o.get("page_timeout_ms", 90000)))
+                                        try:
+                                            page.wait_for_load_state("networkidle", timeout=10000)
+                                        except Exception:
+                                            pass
+                                        page.wait_for_timeout(1200)
+                                        records.extend(parse_kasrapars_html(page.content(), u))
+                                    break
+                            except Exception:
+                                continue
+                    except Exception:
+                        continue
+            finally:
+                context.close()
+                browser.close()
+        return _dedupe(records), api_hits, response_urls
 
     def records(self, watchlist):
         locations = self.locations(watchlist)
@@ -401,14 +470,11 @@ class KasraParsSource(Source):
         all_records, seen_pages = [], set()
         pages = 0
         detected_units = set()
-
         try:
-            # Primary path: cheap HTTP fetch + deterministic parser.
             for initial in locations:
                 current = initial
                 while current and current not in seen_pages and pages < max_pages:
-                    seen_pages.add(current)
-                    pages += 1
+                    seen_pages.add(current); pages += 1
                     body = self.read(current)
                     stripped = body.lstrip()
                     if stripped.startswith("{") or stripped.startswith("["):
@@ -416,24 +482,14 @@ class KasraParsSource(Source):
                             payload = json.loads(body)
                         except json.JSONDecodeError:
                             payload = None
-                        rows = []
-                        if payload is not None:
-                            for obj in _json_products(payload):
-                                rec = _json_record(obj, current)
-                                if rec:
-                                    rows.append(rec)
+                        rows = _json_response_records(payload, current) if payload is not None else []
                     else:
                         rows = parse_kasrapars_html(body, current)
-
                     all_records.extend(rows)
-                    detected_units.update(
-                        r.get("currency_detected") for r in rows if r.get("currency_detected")
-                    )
+                    detected_units.update(r.get("currency_detected") for r in rows if r.get("currency_detected"))
 
                     nxt = _next_url(body, current) if follow_next else ""
-                    if not nxt and rows and pages < max_pages and self.o.get(
-                        "page_query_fallback", False
-                    ) and urlsplit(current).scheme:
+                    if not nxt and rows and pages < max_pages and self.o.get("page_query_fallback", False) and urlsplit(current).scheme:
                         candidate = _page_url(current, pages + 1, pagination_param)
                         nxt = candidate if candidate not in seen_pages else ""
                     if not rows:
@@ -445,43 +501,24 @@ class KasraParsSource(Source):
                 session.close()
 
         out = _dedupe(all_records)
-
-        # Recovery path: if the server returned an empty/client-rendered shell,
-        # use Chromium to execute the site's JavaScript and parse the rendered DOM.
-        if not out and self.o.get("browser_fallback", True):
-            browser_pages = _browser_fetch_pages(
-                locations,
-                self.o.get("base_url", "https://plus.kasrapars.ir/"),
-                max_pages=max_pages,
-                timeout_ms=int(self.o.get("page_timeout_ms", 90000)),
-                max_scrolls=int(self.o.get("browser_max_scrolls", 12)),
+        if not out and bool(self.o.get("browser_fallback", False)):
+            browser_rows, api_hits, api_urls = self._browser_fallback(
+                locations, int(self.o.get("browser_max_scrolls", 12))
             )
-            browser_records = []
-            browser_units = set()
-            for _, _, rows in browser_pages:
-                browser_records.extend(rows)
-                browser_units.update(
-                    r.get("currency_detected") for r in rows if r.get("currency_detected")
-                )
-            out = _dedupe(browser_records)
-            detected_units.update(browser_units)
+            out = _dedupe(out + browser_rows)
             if out:
-                pages = max(pages, len(browser_pages))
-                self.note = (
-                    f"http+browser-fallback; pages={pages}; "
-                    f"detected_currency={','.join(sorted(detected_units)) or 'unknown'}"
-                )
+                detected_units.update(r.get("currency_detected") for r in out if r.get("currency_detected"))
+                self.raw_count = len(out)
+                self.catalog_titles = list(dict.fromkeys(r["title"] for r in out if r.get("title")))
+                self.note = (f"http+browser-api; pages={pages}; api_hits={api_hits}; "
+                             f"api_urls={len(api_urls)}; detected_currency={','.join(sorted(detected_units)) or 'unknown'}")
+                return out
+            self.note = f"http+browser-empty; pages={pages}; api_hits={api_hits}; api_urls={len(api_urls)}"
 
         if not out:
-            raise RuntimeError(
-                "KasraPars returned zero products (HTTP parser and browser fallback both found none)"
-            )
+            raise RuntimeError("KasraPars returned zero products (HTTP parser and browser/API fallback both found none)")
         self.raw_count = len(out)
         self.catalog_titles = list(dict.fromkeys(r["title"] for r in out if r.get("title")))
-        if not self.note:
-            self.note = (
-                f"http+html/json; pages={pages}; "
-                f"detected_currency={','.join(sorted(detected_units)) or 'unknown'}"
-            )
+        self.note = f"http+html/json; pages={pages}; detected_currency={','.join(sorted(detected_units)) or 'unknown'}"
         return out
 
