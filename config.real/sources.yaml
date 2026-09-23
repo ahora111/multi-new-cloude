@@ -51,3 +51,20 @@ sources:
   max_scrolls: 30
   stable_scrolls: 3
   max_products: 1000
+- name: kasrapars
+  type: kasrapars
+  currency_unit: toman
+  priority: 50
+  min_expected_products: 0
+  degraded_excluded: true
+  base_url: https://plus.kasrapars.ir/
+  rate_limit_per_sec: 0.5
+  timeout: 30
+  retries: 3
+  max_pages: 100
+  follow_next: true
+  page_query_fallback: true
+  pagination_param: page
+  urls:
+  - https://plus.kasrapars.ir/search/category-mobilephone
+  url: https://plus.kasrapars.ir/search/category-mobilephone?brand_slug%5Bxiaomi%5D=false

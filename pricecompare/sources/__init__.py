@@ -6,10 +6,11 @@ from .eways import EwaysSource
 from .exontel import ExontelSource
 from .farnaa import FarnaaSource
 from .hamrahtel import HamrahtelSource
+from .kasrapars import KasraParsSource
 from .html_source import HtmlSource
 from .json_source import JsonSource
 
-REGISTRY = {c.type_name: c for c in (JsonSource, HtmlSource, CsvSource, EwaysSource, HamrahtelSource, FarnaaSource, ExontelSource)}
+REGISTRY = {c.type_name: c for c in (JsonSource, HtmlSource, CsvSource, EwaysSource, HamrahtelSource, FarnaaSource, ExontelSource, KasraParsSource)}
 
 
 def build_source(cfg, settings=None, base_dir=".", http=None) -> Source:

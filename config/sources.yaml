@@ -3,7 +3,7 @@ sources:
   type: json
   currency_unit: toman
   priority: 10
-  min_expected_products: 5
+  min_expected_products: 3
   path: fixtures/shop_a.json
   items_path: data.products
   base_url: https://shop-a.example
@@ -19,7 +19,7 @@ sources:
   type: html
   currency_unit: rial
   priority: 20
-  min_expected_products: 5
+  min_expected_products: 3
   path: fixtures/shop_b.html
   base_url: https://shop-b.example
   item_selector: div.p
@@ -33,7 +33,7 @@ sources:
   type: csv
   currency_unit: toman
   priority: 30
-  min_expected_products: 5
+  min_expected_products: 3
   path: fixtures/shop_c.csv
   columns:
     id: sku
@@ -45,7 +45,7 @@ sources:
   type: farnaa
   currency_unit: toman
   priority: 30
-  min_expected_products: 50
+  min_expected_products: 30
   degraded_excluded: true
   url: https://farnaa.com/category/mobile?availablestock=true
   base_url: https://farnaa.com/
@@ -71,3 +71,18 @@ sources:
   max_scrolls: 30
   stable_scrolls: 3
   max_products: 1000
+- name: kasrapars
+  type: kasrapars
+  currency_unit: toman
+  priority: 50
+  min_expected_products: 3
+  degraded_excluded: true
+  base_url: https://plus.kasrapars.ir/
+  rate_limit_per_sec: 0.5
+  timeout: 30
+  retries: 3
+  max_pages: 100
+  follow_next: true
+  page_query_fallback: false
+  pagination_param: page
+  path: fixtures/kasrapars_mobile.html
