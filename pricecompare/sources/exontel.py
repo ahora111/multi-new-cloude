@@ -100,7 +100,7 @@ def _looks_like_variant_label(value: str) -> bool:
     return False
 
 
-def _variant_rows(body_lines):
+def _variant_rows(body_lines, product_stock=None):
     """Parse only real colour choices from ExonTel's order block.
 
     A valid row is colour -> (price | stock marker) -> optional add-to-cart.
@@ -108,10 +108,14 @@ def _variant_rows(body_lines):
     stock marker is present.
     """
     lines = [_clean(x) for x in body_lines if _clean(x)]
+    # The live site has used more than one label for the variant/order block.
+    # Prefer that block, but keep a structural fallback below for pages where
+    # the heading is omitted from the rendered DOM.
+    starts = {"انتخاب و سفارش", "Choose and order", "انتخاب رنگ", "Choose color", "انتخاب رنگ و سفارش"}
     try:
-        start = next(i for i, x in enumerate(lines) if x in {"انتخاب و سفارش", "Choose and order"}) + 1
+        start = next(i for i, x in enumerate(lines) if x in starts) + 1
     except StopIteration:
-        return []
+        start = 0
     end = next((i for i in range(start, len(lines)) if lines[i] in {"توضیحات محصول", "Product description"}), len(lines))
     rows = []
     i = start
@@ -133,6 +137,13 @@ def _variant_rows(body_lines):
                         stock = "in_stock"
                     marker = f"{marker} | {lines[i + 2]}"
                     i += 1
+                elif stock is None and product_stock == "in_stock":
+                    # Some rendered ExonTel pages show a concrete variant
+                    # price but omit the per-variant "موجود" marker.  When
+                    # the product itself is explicitly in stock, a priced
+                    # variant is considered in stock; explicit "ناموجود"
+                    # still wins because it was parsed above.
+                    stock = "in_stock"
                 rows.append((color, marker, price, stock))
                 i += 2
                 if i < end and lines[i] in {"افزودن به سبد", "Add to cart"}:
@@ -178,7 +189,19 @@ def parse_product_html(html: str, url: str = "") -> list[dict]:
                 base_stock = "in_stock" if "instock" in av else ("out_of_stock" if "outofstock" in av else base_stock)
 
     lines = [_clean(x) for x in soup.get_text("\n", strip=True).splitlines() if _clean(x)]
-    variants = _variant_rows(lines)
+    visible_stock = next((_stock(x) for x in lines if _stock(x)), None)
+    effective_product_stock = base_stock or visible_stock
+    variants = _variant_rows(lines, effective_product_stock)
+    # Repeated responsive/mobile DOM blocks can expose the same colour more
+    # than once. Keep one concrete offer per product+colour.
+    unique_variants, seen_colors = [], set()
+    for row in variants:
+        c = _clean(row[0]).lower()
+        if c in seen_colors:
+            continue
+        seen_colors.add(c)
+        unique_variants.append(row)
+    variants = unique_variants
 
     # If the visible variant block exists, emit one Offer per concrete colour.
     if variants:

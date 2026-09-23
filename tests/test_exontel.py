@@ -144,7 +144,7 @@ def test_variant_parser_does_not_turn_price_ui_text_into_colours():
     assert rows[0]["stock"] == "in_stock"
 
 
-def test_variant_without_stock_marker_is_unknown_not_product_level_fallback():
+def test_variant_with_price_uses_product_level_stock_when_variant_marker_is_omitted():
     html = """
     <article><h1>Samsung Galaxy A17 128GB RAM 4</h1>
       <div>موجود</div>
@@ -156,4 +156,34 @@ def test_variant_without_stock_marker_is_unknown_not_product_level_fallback():
     rows = parse_product_html(html, "https://exontel.com/product/exp-unknown")
     assert len(rows) == 1
     assert rows[0]["color"] == "مشکی"
-    assert rows[0]["stock"] == "unknown"
+    assert rows[0]["stock"] == "in_stock"
+
+
+def test_variant_with_price_uses_explicit_product_stock_when_variant_marker_is_omitted():
+    html = """
+    <article><h1>Samsung Galaxy A56 5G 256GB RAM 8</h1>
+      <div>موجود</div>
+      <div>انتخاب و سفارش</div>
+      <div>مشکی</div><div>۱۰۷٬۳۹۰٬۰۰۰ تومان</div>
+      <div>مشکی</div><div>۱۰۷٬۳۹۰٬۰۰۰ تومان</div>
+      <h3>توضیحات محصول</h3>
+    </article>
+    """
+    rows = parse_product_html(html, "https://exontel.com/product/exp-stock-fallback")
+    assert len(rows) == 1
+    assert rows[0]["color"] == "مشکی"
+    assert rows[0]["stock"] == "in_stock"
+
+
+def test_explicit_variant_out_of_stock_overrides_product_level_stock():
+    html = """
+    <article><h1>Samsung Galaxy A56 5G 256GB RAM 8</h1>
+      <div>موجود</div>
+      <div>انتخاب و سفارش</div>
+      <div>مشکی</div><div>۱۰۷٬۳۹۰٬۰۰۰ تومان</div>
+      <div>سفید</div><div>ناموجود</div>
+      <h3>توضیحات محصول</h3>
+    </article>
+    """
+    rows = parse_product_html(html, "https://exontel.com/product/exp-stock-override")
+    assert {r["color"]: r["stock"] for r in rows} == {"مشکی": "in_stock", "سفید": "out_of_stock"}
