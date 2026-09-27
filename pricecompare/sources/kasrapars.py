@@ -172,6 +172,42 @@ def _product_nodes(soup):
 
 
 def _json_products(value):
+    """Find product-like objects in JSON/embedded app state.
+
+    Supports both direct prices and Schema.org JSON-LD where the price lives
+    under ``offers`` / ``aggregateOffer``.
+    """
+    out = []
+    def walk(x, parent=None):
+        if isinstance(x, dict):
+            keys = {str(k).lower() for k in x}
+            has_title = bool(x.get("name") or x.get("title") or x.get("product_name") or x.get("productName"))
+            price_keys = {"price", "sale_price", "saleprice", "final_price", "finalprice", "selling_price", "sellingprice"}
+            if has_title and (keys & price_keys):
+                out.append(x)
+            # JSON-LD Product commonly stores price in offers.
+            if has_title:
+                for offer_key in ("offers", "offer", "aggregateOffer", "aggregate_offer"):
+                    offers = x.get(offer_key)
+                    if isinstance(offers, dict):
+                        merged = dict(x)
+                        merged.update(offers)
+                        if any(merged.get(k) not in (None, "") for k in price_keys):
+                            out.append(merged)
+                    elif isinstance(offers, list):
+                        for offer in offers:
+                            if isinstance(offer, dict):
+                                merged = dict(x); merged.update(offer)
+                                if any(merged.get(k) not in (None, "") for k in price_keys):
+                                    out.append(merged)
+            for v in x.values():
+                walk(v, x)
+        elif isinstance(x, list):
+            for v in x:
+                walk(v, parent)
+    walk(value)
+    return out
+
     """Find product-like objects in JSON/embedded app state without assuming a framework."""
     out = []
     def walk(x):
@@ -265,8 +301,9 @@ def _json_response_records(payload, base_url):
 def parse_kasrapars_html(html: str, base_url: str) -> list:
     soup = BeautifulSoup(html, "lxml")
     records = []
+    json_records = []
 
-    # JSON-LD / application state is preferred when present because it usually has real IDs/SKU/GTIN.
+    # JSON-LD / application state is collected secondarily.
     blobs = []
     for script in soup.select("script[type='application/ld+json'], script#__NEXT_DATA__, script[type='application/json']"):
         txt = script.string or script.get_text()
@@ -280,7 +317,7 @@ def parse_kasrapars_html(html: str, base_url: str) -> list:
         for obj in _json_products(blob):
             rec = _json_record(obj, base_url)
             if rec:
-                records.append(rec)
+                json_records.append(rec)
 
     # DOM product cards. Generic selectors are deliberately conservative: a node is accepted only if it has a title and price.
     for node in _product_nodes(soup):
@@ -316,6 +353,44 @@ def parse_kasrapars_html(html: str, base_url: str) -> list:
                         "image": _image(node, base_url), "color": color, "brand": brand,
                         "storage": storage, "ram": ram, "extra": extra, "currency_detected": unit})
 
+    records.extend(json_records)
+
+    # Generic fallback for JS-rendered sites whose card classes are opaque.
+    # Find small containers containing both a product-like link/title and a price.
+    existing_nodes = {id(n) for n in _product_nodes(soup)}
+    for price_el in soup.select("[itemprop='price'], [data-price], [data-sale-price], meta[itemprop='price'], span, div, p, strong, b"):
+        raw = price_el.get("content") if price_el.name == "meta" else (_first_attr(price_el, ("data-sale-price", "data-price")) or _text(price_el))
+        if not raw or parse_price(raw) is None:
+            continue
+        container = price_el
+        for _ in range(6):
+            container = getattr(container, "parent", None)
+            if not container or not getattr(container, "name", None):
+                break
+            if id(container) in existing_nodes:
+                break
+            if len(_text(container)) > 900:
+                continue
+            link = container.select_one("a[href]")
+            title = _title(container)
+            if not title and link:
+                title = (_text(link) or _first_attr(link, ("title", "aria-label"))).strip()
+            if title and link and id(container) not in existing_nodes:
+                href = link.get("href") or ""
+                url = _abs(base_url, href)
+                pid = _first_attr(container, ("data-product-id", "data-product_id", "data-id", "data-sku", "data-code"))
+                sku = _first_attr(container, ("data-sku", "data-product-sku", "data-code"))
+                pid = sku or pid or _url_id(url) or _canonical_url(url) or _stable_id(url)
+                stock = _first_attr(container, ("data-stock", "data-availability")) or _stock(_text(container))
+                records.append({"id": pid, "title": title, "price": raw, "stock": stock, "url": url,
+                                "image": _image(container, base_url), "color": _first_attr(container, ("data-color", "data-colour")),
+                                "brand": _first_attr(container, ("data-brand", "data-brand-name")),
+                                "storage": _first_attr(container, ("data-storage", "data-capacity")),
+                                "ram": _first_attr(container, ("data-ram", "data-memory")),
+                                "extra": {"sku": sku or None, "old_price": None},
+                                "currency_detected": _currency_from_text(_text(container))})
+                break
+
     return _dedupe(records)
 
 
@@ -325,7 +400,14 @@ def _dedupe(records):
         if not r.get("title") or r.get("price") in (None, ""):
             continue
         variant = "|".join(str(r.get(k) or "") for k in ("color", "storage", "ram"))
-        key = (str(r.get("id") or ""), variant, _canonical_url(r.get("url") or ""))
+        rid = str(r.get("id") or "")
+        sku = str((r.get("extra") or {}).get("sku") or "")
+        if sku:
+            key = ("sku", sku)
+        elif rid:
+            key = ("id", rid, variant)
+        else:
+            key = ("fallback", str(r.get("title") or ""), str(r.get("price") or ""), _canonical_url(r.get("url") or ""))
         if key in seen:
             continue
         seen.add(key); out.append(r)
@@ -381,13 +463,16 @@ class KasraParsSource(Source):
                     ctype = (response.headers.get("content-type") or "").lower()
                     url = response.url
                     interesting = (
-                        "json" in ctype or any(token in url.lower() for token in (
-                            "/api/", "graphql", "ajax", "search", "product", "products", "catalog", "shop"
+                        "json" in ctype or "javascript" in ctype or any(token in url.lower() for token in (
+                            "/api/", "graphql", "ajax", "search", "product", "products", "catalog", "shop", "query", "filter"
                         ))
                     )
-                    if not interesting or len(response_urls) >= 80:
+                    if not interesting:
                         return
-                    response_urls.append(url)
+                    # Do not cap responses before inspecting them. Modern catalog pages
+                    # can issue many asset/search requests before the actual product API.
+                    if len(response_urls) < 500:
+                        response_urls.append(url)
                     body = response.text()
                     if not body or len(body) > 15_000_000:
                         return
@@ -412,7 +497,7 @@ class KasraParsSource(Source):
                             page.wait_for_load_state("networkidle", timeout=15000)
                         except Exception:
                             pass
-                        page.wait_for_timeout(1800)
+                        page.wait_for_timeout(int(self.o.get("browser_initial_wait_ms", 3000)))
 
                         # Parse whatever was rendered as a secondary path.
                         rows = parse_kasrapars_html(page.content(), initial)
@@ -423,7 +508,7 @@ class KasraParsSource(Source):
                         for _ in range(max_scrolls):
                             height = page.evaluate("document.body.scrollHeight")
                             page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-                            page.wait_for_timeout(900)
+                            page.wait_for_timeout(int(self.o.get("browser_scroll_wait_ms", 1200)))
                             if height == last_height:
                                 stable += 1
                             else:
