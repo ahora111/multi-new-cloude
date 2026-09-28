@@ -124,3 +124,29 @@ def test_kasrapars_browser_api_payload_flattens_parent_product_and_variant():
     assert rows[0]["title"] == "Samsung Galaxy A56 5G 8GB 256GB"
     assert rows[0]["color"] == "Black"
     assert rows[0]["brand"] == "Samsung"
+
+
+def test_kasrapars_rejects_ui_title_with_embedded_prices():
+    rows = parse_kasrapars_html("""
+    <div class='recommendation'>
+      <h3 class='title'>رنگ‌بندی و بهترین پیشنهاد</h3>
+      <span class='price'>۱٬۷۲۵٬۶۱۲</span>
+      <span class='price'>۳۷٬۵۲۵٬۶۱۲</span>
+    </div>
+    """, "https://plus.kasrapars.ir/search/category-mobilephone")
+    assert rows == []
+
+
+def test_kasrapars_fallback_uses_real_product_link_and_nearest_price():
+    rows = parse_kasrapars_html("""
+    <section class='opaque-card'>
+      <a href='/product/samsung-galaxy-a17-4g-1286gb'>
+        <span>Samsung Galaxy A17 4G 128GB RAM 6GB</span>
+      </a>
+      <div class='some-price'>۳۵٬۹۹۰٬۰۰۰ تومان</div>
+    </section>
+    """, "https://plus.kasrapars.ir/")
+    assert len(rows) == 1
+    assert rows[0]["title"] == "Samsung Galaxy A17 4G 128GB RAM 6GB"
+    assert rows[0]["price"] == "۳۵٬۹۹۰٬۰۰۰ تومان"
+    assert rows[0]["url"].endswith("/product/samsung-galaxy-a17-4g-1286gb")

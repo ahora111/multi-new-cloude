@@ -145,13 +145,92 @@ def _field(node, labels):
     return ""
 
 
+_GENERIC_TITLES = {
+    "رنگ بندی و بهترین پیشنهاد", "رنگ‌بندی و بهترین پیشنهاد", "بهترین پیشنهاد",
+    "رنگ بندی", "رنگ‌بندی", "محصولات", "محصولات موجود", "دسته بندی", "دسته‌بندی",
+    "فیلتر", "مرتب سازی", "مرتب‌سازی", "جستجو", "search", "products", "product",
+}
+
+
+def _clean_title(value: str) -> str:
+    value = re.sub(r"\s+", " ", str(value or "")).strip(" -|:")
+    return value
+
+
+def _looks_like_product_title(title: str, url: str = "") -> bool:
+    """Reject navigation/filter/UI labels that can accidentally carry prices.
+
+    Kasra Plus exposes a number of recommendation/filter blocks containing price
+    values but no product identity. Those must never become Offers.
+    """
+    t = _clean_title(title)
+    if not t or len(t) < 3 or len(t) > 300:
+        return False
+    norm = re.sub(r"[\u200c\u200f\u200e]+", "", t).lower()
+    if norm in {re.sub(r"[\u200c\u200f\u200e]+", "", x).lower() for x in _GENERIC_TITLES}:
+        return False
+    generic_tokens = ("رنگ بندی", "رنگ‌بندی", "بهترین پیشنهاد", "فیلتر محصولات", "مرتب سازی", "مرتب‌سازی")
+    if any(x in norm for x in generic_tokens):
+        return False
+    # A real product URL is strong evidence even for a short Persian title.
+    if "/product/" in (url or "").lower():
+        return True
+    # Otherwise require at least a model-like signal (digit or common mobile brand).
+    brands = ("samsung", "galaxy", "xiaomi", "redmi", "poco", "apple", "iphone",
+              "honor", "huawei", "nokia", "motorola", "tecno", "infinix", "oppo",
+              "oneplus", "realme", "tcl", "glx", "vivo", "hanofer", "generalluxe",
+              "جنرال لوکس", "سامسونگ", "شیائومی", "اپل", "آیفون", "نوکیا", "آنر")
+    return bool(re.search(r"\d", norm) or any(b in norm for b in brands))
+
+
+def _product_link_fallback(soup, base_url):
+    """Extract cards by their real /product/ link when CSS classes are opaque."""
+    rows = []
+    seen = set()
+    for link in soup.select("a[href*='/product/']"):
+        href = link.get("href") or ""
+        url = _abs(base_url, href)
+        title = _clean_title(_text(link) or _first_attr(link, ("title", "aria-label")))
+        if not _looks_like_product_title(title, url):
+            continue
+        # Find the nearest compact ancestor containing an actual price.
+        node = link
+        for _ in range(8):
+            node = getattr(node, "parent", None)
+            if not node or not getattr(node, "name", None):
+                break
+            text = _text(node)
+            if len(text) > 1000:
+                continue
+            price, price_raw = _price(node)
+            if price is None:
+                continue
+            pid = _first_attr(node, ("data-product-id", "data-product_id", "data-id", "data-sku", "data-code"))
+            sku = _first_attr(node, ("data-sku", "data-product-sku", "data-code"))
+            pid = sku or pid or _url_id(url) or _canonical_url(url) or _stable_id(url)
+            color = _first_attr(node, ("data-color", "data-colour")) or _text(node.select_one(".color, .colour, .product-color, [itemprop=color]"))
+            brand = _first_attr(node, ("data-brand", "data-brand-name")) or _text(node.select_one(".brand, .product-brand, [itemprop=brand]"))
+            stock = _first_attr(node, ("data-stock", "data-availability")) or _stock(text)
+            key = (pid, str(price_raw), color)
+            if key not in seen:
+                seen.add(key)
+                rows.append({"id": pid, "title": title, "price": price_raw, "stock": stock, "url": url,
+                             "image": _image(node, base_url), "color": color, "brand": brand,
+                             "storage": _first_attr(node, ("data-storage", "data-capacity")),
+                             "ram": _first_attr(node, ("data-ram", "data-memory")),
+                             "extra": {"sku": sku or None, "old_price": None},
+                             "currency_detected": _currency_from_text(text)})
+            break
+    return rows
+
+
 def _title(node):
     for sel in ("[itemprop='name']", "h1", "h2", "h3", "h4", ".product-title", ".product-name", ".title", "[class*='product'][class*='title']"):
         el = node.select_one(sel)
         if el:
             t = _text(el)
             if t and len(t) <= 300:
-                return t
+                return _clean_title(t)
     return ""
 
 
@@ -232,6 +311,8 @@ def _json_record(obj, base_url, fallback_url=""):
         return ""
     title = str(pick("name", "title", "product_name", "productName") or "").strip()
     if not title:
+        return None
+    if not _looks_like_product_title(title, str(pick("url", "link", "product_url", "productUrl") or fallback_url)):
         return None
     url = _abs(base_url, pick("url", "link", "product_url", "productUrl") or fallback_url)
     pid = str(pick("id", "product_id", "productId", "sku", "code") or "").strip()
@@ -327,6 +408,8 @@ def parse_kasrapars_html(html: str, base_url: str) -> list:
             continue
         link = node.select_one("a[href]")
         url = _abs(base_url, link.get("href")) if link else ""
+        if not _looks_like_product_title(title, url):
+            continue
         pid = _first_attr(node, ("data-product-id", "data-product_id", "data-id", "data-sku", "data-code"))
         sku = _first_attr(node, ("data-sku", "data-product-sku", "data-code"))
         # A product card may share data-product-id across colour variants; SKU is the
@@ -360,7 +443,12 @@ def parse_kasrapars_html(html: str, base_url: str) -> list:
     existing_nodes = {id(n) for n in _product_nodes(soup)}
     for price_el in soup.select("[itemprop='price'], [data-price], [data-sale-price], meta[itemprop='price'], span, div, p, strong, b"):
         raw = price_el.get("content") if price_el.name == "meta" else (_first_attr(price_el, ("data-sale-price", "data-price")) or _text(price_el))
-        if not raw or parse_price(raw) is None:
+        cls = " ".join(price_el.get("class") or []).lower() if getattr(price_el, "get", None) else ""
+        has_price_signal = (
+            "تومان" in raw or "ریال" in raw or _PRICE_WORDS.search(raw)
+            or "price" in cls or "cost" in cls or price_el.get("data-price") or price_el.get("data-sale-price")
+        )
+        if not raw or not has_price_signal or parse_price(raw) is None:
             continue
         container = price_el
         for _ in range(6):
@@ -371,11 +459,13 @@ def parse_kasrapars_html(html: str, base_url: str) -> list:
                 break
             if len(_text(container)) > 900:
                 continue
-            link = container.select_one("a[href]")
-            title = _title(container)
-            if not title and link:
-                title = (_text(link) or _first_attr(link, ("title", "aria-label"))).strip()
-            if title and link and id(container) not in existing_nodes:
+            link = container.select_one("a[href*='/product/']") or container.select_one("a[href]")
+            title = ""
+            if link:
+                title = _clean_title(_text(link) or _first_attr(link, ("title", "aria-label")))
+            if not title:
+                title = _title(container)
+            if title and link and _looks_like_product_title(title, _abs(base_url, link.get("href") or "")) and id(container) not in existing_nodes:
                 href = link.get("href") or ""
                 url = _abs(base_url, href)
                 pid = _first_attr(container, ("data-product-id", "data-product_id", "data-id", "data-sku", "data-code"))
@@ -390,6 +480,9 @@ def parse_kasrapars_html(html: str, base_url: str) -> list:
                                 "extra": {"sku": sku or None, "old_price": None},
                                 "currency_detected": _currency_from_text(_text(container))})
                 break
+
+    # Final, high-confidence path: real product links + nearest price-bearing card.
+    records.extend(_product_link_fallback(soup, base_url))
 
     return _dedupe(records)
 
