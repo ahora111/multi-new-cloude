@@ -164,3 +164,23 @@ def test_kasrapars_proxy_markdown_fallback_extracts_product_and_price():
     assert len(rows) == 1
     assert rows[0]["title"] == "Samsung Galaxy A17 4G 128/6GB"
     assert rows[0]["price"] == 35990000
+
+
+def test_kasrapars_telegram_fallback_extracts_mobile_price_and_ignores_accessory():
+    from pricecompare.sources.kasrapars import _telegram_product_records
+    body = """
+    <div class="tgme_widget_message_wrap">
+      <div class="tgme_widget_message_text">
+        🚀 بهترین قیمت موبایل اینجاست!<br>
+        📱 Galaxy A56 256/8<br>
+        💳 83/459/000<br>
+        🎧 Galaxy Buds Core<br>
+        💳 5/690/000
+      </div>
+    </div>
+    """
+    rows = _telegram_product_records(body, "https://plus.kasrapars.ir/")
+    assert len(rows) == 1
+    assert rows[0]["title"] == "Galaxy A56 256/8"
+    assert rows[0]["price"] == 83459000
+    assert rows[0]["extra"]["telegram_fallback"] is True

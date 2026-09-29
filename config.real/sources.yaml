@@ -73,3 +73,6 @@ sources:
   proxy_timeout: 45
   page_timeout_ms: 90000
   browser_max_scrolls: 12
+  telegram_fallback: true
+  telegram_fallback_url: https://t.me/s/kasrapars
+  telegram_fallback_timeout: 30
