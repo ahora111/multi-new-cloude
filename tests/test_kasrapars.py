@@ -150,3 +150,17 @@ def test_kasrapars_fallback_uses_real_product_link_and_nearest_price():
     assert rows[0]["title"] == "Samsung Galaxy A17 4G 128GB RAM 6GB"
     assert rows[0]["price"] == "۳۵٬۹۹۰٬۰۰۰ تومان"
     assert rows[0]["url"].endswith("/product/samsung-galaxy-a17-4g-1286gb")
+
+
+def test_kasrapars_proxy_markdown_fallback_extracts_product_and_price():
+    from pricecompare.sources.kasrapars import _proxy_product_records
+
+    body = """
+    # Kasra Plus
+    [Samsung Galaxy A17 4G 128/6GB](https://plus.kasrapars.ir/product/samsung-galaxy-a17-4g-1286gb)
+    35,990,000 تومان
+    """
+    rows = _proxy_product_records(body, "https://plus.kasrapars.ir/")
+    assert len(rows) == 1
+    assert rows[0]["title"] == "Samsung Galaxy A17 4G 128/6GB"
+    assert rows[0]["price"] == 35990000

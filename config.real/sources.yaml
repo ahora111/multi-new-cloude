@@ -69,5 +69,7 @@ sources:
   - https://plus.kasrapars.ir/search/category-mobilephone
   url: https://plus.kasrapars.ir/search/category-mobilephone?brand_slug%5Bxiaomi%5D=false
   browser_fallback: true
+  proxy_fallback: true
+  proxy_timeout: 45
   page_timeout_ms: 90000
   browser_max_scrolls: 12

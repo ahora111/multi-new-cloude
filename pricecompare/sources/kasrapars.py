@@ -527,6 +527,79 @@ def _page_url(url, page, param="page"):
     return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(q), ""))
 
 
+
+def _proxy_product_records(body: str, base_url: str):
+    """Parse product links/prices returned by a text/HTML fetch proxy.
+
+    GitHub-hosted runners can fail DNS resolution for the Iranian Kasra domain even
+    though the site is reachable elsewhere.  A proxy response may be either HTML or
+    Markdown/plain text, so keep this parser deliberately conservative: only links
+    whose path contains /product/ are considered product identities, and a nearby
+    explicit currency/price is required.
+    """
+    if not body:
+        return []
+    # If the proxy returned HTML, reuse the normal parser first.
+    try:
+        rows = parse_kasrapars_html(body, base_url)
+        if rows:
+            return rows
+    except Exception:
+        pass
+
+    lines = [re.sub(r"\s+", " ", x).strip() for x in body.splitlines()]
+    lines = [x for x in lines if x]
+    out = []
+    link_re = re.compile(r"(?:\[[^\]]+\]\()?((?:https?:)?//[^)\s]+/product/[^)\s]+)", re.I)
+    for i, line in enumerate(lines):
+        m = link_re.search(line)
+        if not m:
+            continue
+        url = m.group(1).rstrip('.,)')
+        # Markdown link text is the strongest title signal.
+        title = ""
+        lm = re.search(r"\[([^\]]+)\]\(", line)
+        if lm:
+            title = _clean_title(lm.group(1))
+        if not title:
+            title = _clean_title(re.sub(r"https?://[^\s]+", "", line))
+        if not _looks_like_product_title(title, url):
+            continue
+        nearby = []
+        for j in range(max(0, i - 3), min(len(lines), i + 6)):
+            txt = lines[j]
+            if not ("تومان" in txt or "ریال" in txt or re.search(r"\b(?:toman|rial)\b", txt, re.I)):
+                continue
+            val = parse_price(txt)
+            if val is not None and val > 0:
+                nearby.append((j, val, txt))
+        if not nearby:
+            continue
+        _, price, price_text = min(nearby, key=lambda x: abs(x[0] - i))
+        out.append({
+            "id": _url_id(url) or _stable_id(url),
+            "title": title,
+            "price": price,
+            "url": url,
+            "stock": _stock(" ".join(lines[max(0, i - 2):min(len(lines), i + 6)])),
+            "currency_detected": _currency_from_text(price_text),
+            "extra": {"proxy_fallback": True},
+        })
+    return _dedupe(out)
+
+
+def _proxy_urls(url: str):
+    from urllib.parse import quote
+    encoded = quote(url, safe="")
+    # Jina is generally good at reaching sites that are DNS/geo inaccessible from CI.
+    # AllOrigins is retained as a second independent fallback for raw HTML.
+    return [
+        f"https://r.jina.ai/http://{urlsplit(url).netloc}{urlsplit(url).path}"
+        + (f"?{urlsplit(url).query}" if urlsplit(url).query else ""),
+        f"https://r.jina.ai/{url}",
+        f"https://api.allorigins.win/raw?url={encoded}",
+    ]
+
 class KasraParsSource(Source):
     type_name = "kasrapars"
 
@@ -640,6 +713,29 @@ class KasraParsSource(Source):
                 browser.close()
         return _dedupe(records), api_hits, response_urls
 
+
+    def _proxy_fallback(self, locations):
+        """Fetch through public read proxies when CI cannot resolve Kasra DNS."""
+        import requests
+        rows = []
+        tried = set()
+        timeout = int(self.o.get("proxy_timeout", 45))
+        for initial in locations:
+            for proxy in _proxy_urls(initial):
+                if proxy in tried:
+                    continue
+                tried.add(proxy)
+                try:
+                    r = requests.get(proxy, timeout=timeout, headers={"User-Agent": "Mozilla/5.0"})
+                    if r.status_code != 200 or not r.text:
+                        continue
+                    parsed = _proxy_product_records(r.text, initial)
+                    if parsed:
+                        rows.extend(parsed)
+                except Exception:
+                    continue
+        return _dedupe(rows), len(tried)
+
     def records(self, watchlist):
         locations = self.locations(watchlist)
         max_pages = int(self.o.get("max_pages", 100))
@@ -692,6 +788,18 @@ class KasraParsSource(Source):
                              f"api_urls={len(api_urls)}; detected_currency={','.join(sorted(detected_units)) or 'unknown'}")
                 return out
             self.note = f"http+browser-empty; pages={pages}; api_hits={api_hits}; api_urls={len(api_urls)}"
+
+        if not out and bool(self.o.get("proxy_fallback", True)):
+            proxy_rows, proxy_attempts = self._proxy_fallback(locations)
+            out = _dedupe(out + proxy_rows)
+            if out:
+                detected_units.update(r.get("currency_detected") for r in out if r.get("currency_detected"))
+                self.raw_count = len(out)
+                self.catalog_titles = list(dict.fromkeys(r["title"] for r in out if r.get("title")))
+                self.note = (f"http+browser+proxy; pages={pages}; proxy_attempts={proxy_attempts}; "
+                             f"detected_currency={','.join(sorted(detected_units)) or 'unknown'}")
+                return out
+            self.note = f"http+browser+proxy-empty; pages={pages}; proxy_attempts={proxy_attempts}"
 
         if not out:
             raise RuntimeError("KasraPars returned zero products (HTTP parser and browser/API fallback both found none)")
