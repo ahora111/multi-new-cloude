@@ -614,81 +614,117 @@ def _telegram_mobile_title(title: str) -> bool:
     )
 
 def _telegram_product_records(body: str, base_url: str):
-    """Extract mobile price offers from the public @kasrapars channel preview.
+    """Extract mobile price offers from Telegram HTML *or* Markdown/plain text.
 
-    This is intentionally a degraded fallback only: Telegram posts are a promotional
-    subset of the catalog, not a replacement for the live Kasra Plus catalog.
+    This is a degraded fallback only: Telegram posts are a promotional subset of
+    the catalog, not a replacement for the live Kasra Plus catalog.
     """
     if not body:
         return []
+
+    # Telegram preview can arrive as normal HTML, while read proxies such as Jina
+    # commonly return Markdown. Support both forms so a CI runner does not depend
+    # on one particular transport.
     soup = BeautifulSoup(body, "html.parser")
-    blocks = soup.select("div.tgme_widget_message_wrap")
-    if not blocks:
-        blocks = soup.select("div.tgme_widget_message")
+    blocks = soup.select("div.tgme_widget_message_wrap") or soup.select("div.tgme_widget_message")
+    if blocks:
+        chunks = []
+        for block in blocks:
+            text_node = block.select_one(".tgme_widget_message_text")
+            if not text_node:
+                continue
+            chunks.append((
+                text_node.get_text("\n", strip=True),
+                [(a.get_text(" ", strip=True), a.get("href") or "") for a in text_node.select("a[href]")],
+            ))
+        return _telegram_text_records(chunks, base_url)
+
+    # Markdown/plain text fallback. Keep each paragraph/post separated where
+    # possible, but also support proxies that flatten the channel into one block.
+    text = soup.get_text("\n", strip=True) if soup.find() else body
+    return _telegram_text_records([(text, [])], base_url)
+
+
+def _telegram_text_records(chunks, base_url):
     out = []
-    for block in blocks:
-        text_node = block.select_one(".tgme_widget_message_text")
-        if not text_node:
-            continue
-        # Preserve link targets so a product URL can become the stable offer identity.
-        lines = [re.sub(r"\s+", " ", x).strip() for x in text_node.get_text("\n", strip=True).splitlines()]
+    for raw_text, anchors in chunks:
+        lines = [re.sub(r"\s+", " ", x).strip() for x in str(raw_text or "").splitlines()]
         lines = [x for x in lines if x]
         if not lines:
             continue
-        anchors = [(a.get_text(" ", strip=True), a.get("href") or "") for a in text_node.select("a[href]")]
+
         product_links = [(_clean_title(label), href) for label, href in anchors
-                         if "/product/" in href.lower()]
+                         if "/product/" in (href or "").lower()]
+
+        # Markdown link syntax may survive a read proxy even when there are no HTML anchors.
+        for idx, line in enumerate(lines):
+            for lm in re.finditer(r"\[([^\]]+)\]\((https?://[^)]+/product/[^)]+)\)", line, re.I):
+                product_links.append((_clean_title(lm.group(1)), lm.group(2)))
+            lines[idx] = re.sub(r"\[([^\]]+)\]\((https?://[^)]+)\)", r"\1", line)
+
         for i, line in enumerate(lines):
-            has_currency = ("تومان" in line or "ریال" in line or re.search(r"\b(?:toman|rial)\b", line, re.I))
-            # Kasra Telegram commonly formats prices as `💳 83/459/000` without
-            # writing the currency unit, so accept separator-based 6+ digit values.
-            numeric_only = re.sub(r"[^0-9۰-۹٠-٩.,٬،٫/]", "", line.translate(str.maketrans("۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩", "01234567890123456789")))
-            looks_like_price = bool(re.search(r"\d{1,3}(?:[\d.,٬،٫/]{3,})", numeric_only)) and len(re.sub(r"\D", "", numeric_only)) >= 6
+            has_currency = ("تومان" in line or "ریال" in line or
+                            re.search(r"\b(?:toman|rial)\b", line, re.I))
+            # Kasra Telegram commonly formats prices as 83/459/000 without a currency unit.
+            normalized_digits = str(line).translate(str.maketrans(
+                "۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩", "01234567890123456789"))
+            numeric_only = re.sub(r"[^0-9.,٬،٫/]", "", normalized_digits)
+            looks_like_price = (
+                bool(re.search(r"\d{1,3}(?:[\d.,٬،٫/]{3,})", numeric_only))
+                and len(re.sub(r"\D", "", numeric_only)) >= 6
+            )
             if not (has_currency or looks_like_price):
                 continue
             price = parse_price(line)
             if price is None or price <= 0:
                 continue
-            # The product title is normally the nearest preceding content line.
+
+            # Find the closest preceding mobile-looking title, stopping at a new
+            # promo/header boundary. This handles both Telegram HTML and flattened Markdown.
             candidates = []
-            for j in range(max(0, i - 4), i):
-                candidate = re.sub(r"^[^\w\u0600-\u06ff]+", "", lines[j]).strip(" -:|")
+            for j in range(max(0, i - 6), i):
+                candidate = re.sub(r"^[^\w\u0600-\u06ff]+", "", lines[j]).strip(" -:|*_")
                 candidate = re.sub(r"^(?:قیمت(?:\s+ویژه)?|price)\s*[:：-]?\s*", "", candidate, flags=re.I)
-                if candidate:
-                    candidates.append(candidate)
-            title = ""
-            for candidate in reversed(candidates):
-                low_candidate = candidate.lower()
-                if any(x in low_candidate for x in _TELEGRAM_NON_MOBILE_HINTS):
+                if not candidate:
+                    continue
+                low = candidate.lower()
+                if any(x in low for x in _TELEGRAM_NON_MOBILE_HINTS):
                     break
+                if any(x in low for x in ("کسری پلاس", "بهترین قیمت", "ارسال سریع", "امکان خرید", "۳۰ دقیقه", "30 دقیقه")):
+                    continue
                 if _telegram_mobile_title(candidate):
-                    title = candidate
-                    break
+                    candidates.append(candidate)
+            title = candidates[-1] if candidates else ""
+
             url = ""
             if product_links:
-                # Prefer a link whose visible label resembles the selected title.
                 if title:
                     for label, href in product_links:
                         if label and (label in title or title in label):
                             url = href
                             break
-                url = url or product_links[-1][1]
-                if not title:
-                    title = next((label for label, _ in product_links if _telegram_mobile_title(label)), "")
+                if not url:
+                    # Only attach a product link if its label itself looks mobile-like;
+                    # never attach an unrelated accessory URL to a phone price.
+                    for label, href in reversed(product_links):
+                        if _telegram_mobile_title(label):
+                            url = href
+                            if not title:
+                                title = label
+                            break
+
             if not title or not _telegram_mobile_title(title):
                 continue
-            if url:
-                url = urljoin(base_url, url)
+            url = urljoin(base_url, url) if url else ""
             pid = _url_id(url) if url else ""
             if not pid:
                 pid = "tg_" + hashlib.sha1((title + "|" + str(price)).encode("utf-8")).hexdigest()
-            stock = _stock(text_node.get_text(" ", strip=True)) or "in_stock"
             out.append({
                 "id": pid,
                 "title": title,
                 "price": price,
                 "url": url,
-                "stock": stock,
+                "stock": "in_stock",
                 "currency_detected": _currency_from_text(line) or "toman",
                 "extra": {"telegram_fallback": True},
             })
@@ -821,21 +857,45 @@ class KasraParsSource(Source):
 
 
     def _telegram_fallback(self):
-        """Use the public Kasra Telegram preview as a last-resort degraded source."""
+        """Use the public Kasra Telegram preview through several CI-friendly transports."""
         import requests
+        from urllib.parse import quote
+
         channel_url = str(self.o.get("telegram_fallback_url", "https://t.me/s/kasrapars")).strip()
         timeout = int(self.o.get("telegram_fallback_timeout", 30))
-        try:
-            r = requests.get(
-                channel_url,
-                timeout=timeout,
-                headers={"User-Agent": "Mozilla/5.0 (compatible; PriceCompare/1.0)"},
-            )
-            if r.status_code != 200 or not r.text:
-                return [], r.status_code, channel_url
-            return _telegram_product_records(r.text, self.o.get("base_url", "https://plus.kasrapars.ir/")), r.status_code, channel_url
-        except Exception:
-            return [], 0, channel_url
+        encoded = quote(channel_url, safe="")
+        candidates = [
+            channel_url,
+            "https://www.t.me/s/kasrapars",
+            "https://telegram.me/s/kasrapars",
+            "https://r.jina.ai/http://t.me/s/kasrapars",
+            f"https://r.jina.ai/{channel_url}",
+            f"https://api.allorigins.win/raw?url={encoded}",
+        ]
+        tried = []
+        seen = set()
+        for url in candidates:
+            if not url or url in seen:
+                continue
+            seen.add(url); tried.append(url)
+            try:
+                r = requests.get(
+                    url,
+                    timeout=timeout,
+                    headers={
+                        "User-Agent": "Mozilla/5.0 (compatible; PriceCompare/1.0)",
+                        "Accept": "text/html,text/plain,text/markdown;q=0.9,*/*;q=0.8",
+                    },
+                    allow_redirects=True,
+                )
+                if r.status_code != 200 or not r.text:
+                    continue
+                rows = _telegram_product_records(r.text, self.o.get("base_url", "https://plus.kasrapars.ir/"))
+                if rows:
+                    return rows, r.status_code, url
+            except Exception:
+                continue
+        return [], 0, ",".join(tried)
 
     def _proxy_fallback(self, locations):
         """Fetch through public read proxies when CI cannot resolve Kasra DNS."""

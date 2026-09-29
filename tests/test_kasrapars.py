@@ -184,3 +184,53 @@ def test_kasrapars_telegram_fallback_extracts_mobile_price_and_ignores_accessory
     assert rows[0]["title"] == "Galaxy A56 256/8"
     assert rows[0]["price"] == 83459000
     assert rows[0]["extra"]["telegram_fallback"] is True
+
+
+def test_kasrapars_telegram_markdown_transport_extracts_phone_prices():
+    from pricecompare.sources.kasrapars import _telegram_product_records
+    body = """
+# کسری پلاس
+
+## چند قیمت داری؟!
+📱 Galaxy A56 256/8
+💳 83/799/000
+📱 Galaxy A07 64/4
+💳 21/799/000
+🎧 Redmi Buds 8 Active
+💳 3/099/000
+"""
+    rows = _telegram_product_records(body, "https://plus.kasrapars.ir/")
+    assert {r["title"] for r in rows} == {"Galaxy A56 256/8", "Galaxy A07 64/4"}
+    assert {r["price"] for r in rows} == {83799000, 21799000}
+
+
+def test_kasrapars_telegram_fallback_uses_proxy_when_direct_transport_fails(monkeypatch):
+    from pricecompare.sources.kasrapars import KasraParsSource
+
+    class Resp:
+        def __init__(self, status, text):
+            self.status_code = status
+            self.text = text
+
+    calls = []
+    def fake_get(url, **kwargs):
+        calls.append(url)
+        if url.startswith("https://r.jina.ai/"):
+            return Resp(200, """# Kasra Plus\n📱 Galaxy A56 256/8\n💳 83/799/000\n""")
+        return Resp(503, "")
+
+    import requests
+    monkeypatch.setattr(requests, "get", fake_get)
+    src = object.__new__(KasraParsSource)
+    src.o = {
+        "telegram_fallback_url": "https://t.me/s/kasrapars",
+        "telegram_fallback_timeout": 5,
+        "base_url": "https://plus.kasrapars.ir/",
+    }
+    rows, status, used = src._telegram_fallback()
+    assert len(rows) == 1
+    assert rows[0]["title"] == "Galaxy A56 256/8"
+    assert rows[0]["price"] == 83799000
+    assert status == 200
+    assert used.startswith("https://r.jina.ai/")
+    assert calls[0] == "https://t.me/s/kasrapars"
