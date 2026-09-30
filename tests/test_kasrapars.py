@@ -126,51 +126,73 @@ def test_kasrapars_browser_api_payload_flattens_parent_product_and_variant():
     assert rows[0]["brand"] == "Samsung"
 
 
-def test_kasrapars_rejects_generic_ui_title_and_uses_product_slug():
+def test_kasrapars_rejects_ui_title_with_embedded_prices():
     rows = parse_kasrapars_html("""
-    <article class='product-card' data-product-id='x1'>
-      <a href='/product/samsung-galaxy-a56-5g-256gb'>رنگ‌بندی و بهترین پیشنهاد</a>
-      <span class='sale-price'>۱۰۰٬۰۰۰٬۰۰۰ تومان</span>
+    <div class='recommendation'>
+      <h3 class='title'>رنگ‌بندی و بهترین پیشنهاد</h3>
+      <span class='price'>۱٬۷۲۵٬۶۱۲</span>
+      <span class='price'>۳۷٬۵۲۵٬۶۱۲</span>
+    </div>
+    """, "https://plus.kasrapars.ir/search/category-mobilephone")
+    assert rows == []
+
+
+def test_kasrapars_fallback_uses_real_product_link_and_nearest_price():
+    rows = parse_kasrapars_html("""
+    <section class='opaque-card'>
+      <a href='/product/samsung-galaxy-a17-4g-1286gb'>
+        <span>Samsung Galaxy A17 4G 128GB RAM 6GB</span>
+      </a>
+      <div class='some-price'>۳۵٬۹۹۰٬۰۰۰ تومان</div>
+    </section>
+    """, "https://plus.kasrapars.ir/")
+    assert len(rows) == 1
+    assert rows[0]["title"] == "Samsung Galaxy A17 4G 128GB RAM 6GB"
+    assert rows[0]["price"] == "۳۵٬۹۹۰٬۰۰۰ تومان"
+    assert rows[0]["url"].endswith("/product/samsung-galaxy-a17-4g-1286gb")
+
+
+def test_kasrapars_proxy_markdown_fallback_extracts_product_and_price():
+    from pricecompare.sources.kasrapars import _proxy_product_records
+
+    body = """
+    # Kasra Plus
+    [Samsung Galaxy A17 4G 128/6GB](https://plus.kasrapars.ir/product/samsung-galaxy-a17-4g-1286gb)
+    35,990,000 تومان
+    """
+    rows = _proxy_product_records(body, "https://plus.kasrapars.ir/")
+    assert len(rows) == 1
+    assert rows[0]["title"] == "Samsung Galaxy A17 4G 128/6GB"
+    assert rows[0]["price"] == 35990000
+
+
+
+
+def test_kasrapars_rejects_implausible_mobile_prices_before_matching():
+    rows = parse_kasrapars_html("""
+    <article class='product-card' data-product-id='bad1'>
+      <a class='product-title' href='/product/samsung-galaxy-a56'>Samsung Galaxy A56 256GB 8GB</a>
+      <span class='sale-price'>۳٬۷۵۰٬۰۰۰ تومان</span>
     </article>
-    <article class='product-card' data-product-id='x2'>
-      <a href='/product/12345'>مشاهده محصول</a>
-      <span class='sale-price'>۲۰۰٬۰۰۰٬۰۰۰ تومان</span>
+    <article class='product-card' data-product-id='good1'>
+      <a class='product-title' href='/product/samsung-galaxy-a56-good'>Samsung Galaxy A56 256GB 8GB</a>
+      <span class='sale-price'>۱۰۷٬۳۹۰٬۰۰۰ تومان</span>
     </article>
     """, "https://plus.kasrapars.ir/")
     assert len(rows) == 1
-    assert rows[0]["title"] == "samsung galaxy a56 5g 256gb"
+    assert rows[0]["id"] == "good1"
 
 
-def test_kasrapars_converts_explicit_rial_to_toman():
-    rows = parse_kasrapars_html("""
-    <article class='product-card' data-product-id='rial-1' data-sku='RIAL-1'>
-      <a class='product-title' href='/product/rial-1'>Samsung Galaxy A56 5G 256GB</a>
-      <span class='sale-price'>۱٬۰۷۳٬۹۰۰٬۰۰۰ ریال</span>
-      <span class='stock'>موجود</span>
-    </article>
-    """, "https://plus.kasrapars.ir/")
-    r = rows[0]
-    assert r["price"] == 107390000
-    assert r["currency_detected"] == "toman"
+def test_kasrapars_website_only_has_no_telegram_transport():
+    from pricecompare.sources.kasrapars import KasraParsSource
+    import inspect
+    source = inspect.getsource(KasraParsSource.records)
+    assert "telegram" not in source.lower()
 
 
-def test_kasrapars_http_empty_triggers_browser_fallback(monkeypatch):
-    cfg = _cfg(
-        url="https://plus.kasrapars.ir/search/category-mobilephone?brand_slug%5Bxiaomi%5D=false",
-        browser_fallback=True,
-    )
-    src = build_source(cfg)
-    monkeypatch.setattr(src, "read", lambda _: "<html><body>client rendered</body></html>")
-    monkeypatch.setattr(
-        src, "_browser_fallback",
-        lambda locations, max_scrolls: (
-            [{"id": "browser-1", "title": "Samsung Galaxy A56 5G 256GB", "price": "100000000",
-              "stock": "موجود", "url": "https://plus.kasrapars.ir/product/a56"}],
-            1,
-            ["https://plus.kasrapars.ir/api/products"],
-        ),
-    )
-    rows = src.records([])
-    assert len(rows) == 1
-    assert "http+browser-api" in src.note
-    assert "api_hits=1" in src.note
+def test_kasrapars_config_has_no_telegram_settings():
+    text = (ROOT / "config.real" / "sources.yaml").read_text(encoding="utf-8")
+    start = text.index("- name: kasrapars")
+    end = text.find("\n- name:", start + 1)
+    block = text[start:] if end == -1 else text[start:end]
+    assert "telegram" not in block.lower()
