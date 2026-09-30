@@ -145,119 +145,13 @@ def _field(node, labels):
     return ""
 
 
-_GENERIC_TITLES = {
-    "رنگ بندی و بهترین پیشنهاد", "رنگ‌بندی و بهترین پیشنهاد", "بهترین پیشنهاد",
-    "رنگ بندی", "رنگ‌بندی", "محصولات", "محصولات موجود", "دسته بندی", "دسته‌بندی",
-    "فیلتر", "مرتب سازی", "مرتب‌سازی", "جستجو", "search", "products", "product",
-}
-
-
-def _clean_title(value: str) -> str:
-    value = re.sub(r"\s+", " ", str(value or "")).strip(" -|:")
-    return value
-
-
-def _looks_like_product_title(title: str, url: str = "") -> bool:
-    """Reject navigation/filter/UI labels that can accidentally carry prices.
-
-    Kasra Plus exposes a number of recommendation/filter blocks containing price
-    values but no product identity. Those must never become Offers.
-    """
-    t = _clean_title(title)
-    if not t or len(t) < 3 or len(t) > 300:
-        return False
-    norm = re.sub(r"[\u200c\u200f\u200e]+", "", t).lower()
-    if norm in {re.sub(r"[\u200c\u200f\u200e]+", "", x).lower() for x in _GENERIC_TITLES}:
-        return False
-    generic_tokens = ("رنگ بندی", "رنگ‌بندی", "بهترین پیشنهاد", "فیلتر محصولات", "مرتب سازی", "مرتب‌سازی")
-    if any(x in norm for x in generic_tokens):
-        return False
-    # A real product URL is strong evidence even for a short Persian title.
-    if "/product/" in (url or "").lower():
-        return True
-    # Otherwise require at least a model-like signal (digit or common mobile brand).
-    brands = ("samsung", "galaxy", "xiaomi", "redmi", "poco", "apple", "iphone",
-              "honor", "huawei", "nokia", "motorola", "tecno", "infinix", "oppo",
-              "oneplus", "realme", "tcl", "glx", "vivo", "hanofer", "generalluxe",
-              "جنرال لوکس", "سامسونگ", "شیائومی", "اپل", "آیفون", "نوکیا", "آنر")
-    return bool(re.search(r"\d", norm) or any(b in norm for b in brands))
-
-
-
-_SMARTPHONE_BRANDS = (
-    "samsung", "galaxy", "xiaomi", "redmi", "poco", "iphone", "apple",
-    "honor", "huawei", "motorola", "tecno", "infinix", "oppo", "oneplus",
-    "realme", "vivo", "tcl", "سامسونگ", "شیائومی", "اپل", "آیفون", "آنر",
-)
-
-def _valid_offer_price(title: str, price) -> bool:
-    """Reject obviously corrupted catalog prices before they reach matching.
-
-    Kasra's UI can contain counters/recommendation numbers alongside product cards.
-    A real mobile offer in this project is expressed in toman and should not be a
-    sub-million counter; recognized smartphone brands also cannot plausibly be
-    priced like feature-phone accessories. This is a guardrail, not a market-price
-    estimator.
-    """
-    try:
-        value = float(price)
-    except (TypeError, ValueError):
-        return False
-    if value < 500_000 or value > 2_000_000_000:
-        return False
-    norm = re.sub(r"[\u200c\u200f\u200e]+", "", str(title or "")).lower()
-    if any(b in norm for b in _SMARTPHONE_BRANDS) and value < 8_000_000:
-        return False
-    return True
-
-def _product_link_fallback(soup, base_url):
-    """Extract cards by their real /product/ link when CSS classes are opaque."""
-    rows = []
-    seen = set()
-    for link in soup.select("a[href*='/product/']"):
-        href = link.get("href") or ""
-        url = _abs(base_url, href)
-        title = _clean_title(_text(link) or _first_attr(link, ("title", "aria-label")))
-        if not _looks_like_product_title(title, url):
-            continue
-        # Find the nearest compact ancestor containing an actual price.
-        node = link
-        for _ in range(8):
-            node = getattr(node, "parent", None)
-            if not node or not getattr(node, "name", None):
-                break
-            text = _text(node)
-            if len(text) > 1000:
-                continue
-            price, price_raw = _price(node)
-            if price is None:
-                continue
-            pid = _first_attr(node, ("data-product-id", "data-product_id", "data-id", "data-sku", "data-code"))
-            sku = _first_attr(node, ("data-sku", "data-product-sku", "data-code"))
-            pid = sku or pid or _url_id(url) or _canonical_url(url) or _stable_id(url)
-            color = _first_attr(node, ("data-color", "data-colour")) or _text(node.select_one(".color, .colour, .product-color, [itemprop=color]"))
-            brand = _first_attr(node, ("data-brand", "data-brand-name")) or _text(node.select_one(".brand, .product-brand, [itemprop=brand]"))
-            stock = _first_attr(node, ("data-stock", "data-availability")) or _stock(text)
-            key = (pid, str(price_raw), color)
-            if key not in seen:
-                seen.add(key)
-                rows.append({"id": pid, "title": title, "price": price_raw, "stock": stock, "url": url,
-                             "image": _image(node, base_url), "color": color, "brand": brand,
-                             "storage": _first_attr(node, ("data-storage", "data-capacity")),
-                             "ram": _first_attr(node, ("data-ram", "data-memory")),
-                             "extra": {"sku": sku or None, "old_price": None},
-                             "currency_detected": _currency_from_text(text)})
-            break
-    return rows
-
-
 def _title(node):
     for sel in ("[itemprop='name']", "h1", "h2", "h3", "h4", ".product-title", ".product-name", ".title", "[class*='product'][class*='title']"):
         el = node.select_one(sel)
         if el:
             t = _text(el)
             if t and len(t) <= 300:
-                return _clean_title(t)
+                return t
     return ""
 
 
@@ -278,42 +172,6 @@ def _product_nodes(soup):
 
 
 def _json_products(value):
-    """Find product-like objects in JSON/embedded app state.
-
-    Supports both direct prices and Schema.org JSON-LD where the price lives
-    under ``offers`` / ``aggregateOffer``.
-    """
-    out = []
-    def walk(x, parent=None):
-        if isinstance(x, dict):
-            keys = {str(k).lower() for k in x}
-            has_title = bool(x.get("name") or x.get("title") or x.get("product_name") or x.get("productName"))
-            price_keys = {"price", "sale_price", "saleprice", "final_price", "finalprice", "selling_price", "sellingprice"}
-            if has_title and (keys & price_keys):
-                out.append(x)
-            # JSON-LD Product commonly stores price in offers.
-            if has_title:
-                for offer_key in ("offers", "offer", "aggregateOffer", "aggregate_offer"):
-                    offers = x.get(offer_key)
-                    if isinstance(offers, dict):
-                        merged = dict(x)
-                        merged.update(offers)
-                        if any(merged.get(k) not in (None, "") for k in price_keys):
-                            out.append(merged)
-                    elif isinstance(offers, list):
-                        for offer in offers:
-                            if isinstance(offer, dict):
-                                merged = dict(x); merged.update(offer)
-                                if any(merged.get(k) not in (None, "") for k in price_keys):
-                                    out.append(merged)
-            for v in x.values():
-                walk(v, x)
-        elif isinstance(x, list):
-            for v in x:
-                walk(v, parent)
-    walk(value)
-    return out
-
     """Find product-like objects in JSON/embedded app state without assuming a framework."""
     out = []
     def walk(x):
@@ -338,8 +196,6 @@ def _json_record(obj, base_url, fallback_url=""):
         return ""
     title = str(pick("name", "title", "product_name", "productName") or "").strip()
     if not title:
-        return None
-    if not _looks_like_product_title(title, str(pick("url", "link", "product_url", "productUrl") or fallback_url)):
         return None
     url = _abs(base_url, pick("url", "link", "product_url", "productUrl") or fallback_url)
     pid = str(pick("id", "product_id", "productId", "sku", "code") or "").strip()
@@ -370,48 +226,185 @@ def _json_record(obj, base_url, fallback_url=""):
 
 
 def _json_response_records(payload, base_url):
-    """Extract offer-like records from API JSON, including nested variant objects.
+    """Extract Kasra Plus API/GraphQL products and their variants.
 
-    Kasra Plus may expose products through a client-side API rather than rendering
-    product cards in the initial HTML.  API payloads often keep the product title
-    on a parent object and price/color/SKU on a nested variant, so this helper
-    carries useful parent fields into variant dictionaries without changing the
-    normal source contract.
+    Kasra Plus currently exposes the catalogue through a GraphQL response shaped
+    roughly like ``data.publicProducts.edges[].node``.  The parent ``node`` owns
+    the product name/slug/availability while price, SKU and colour live inside
+    ``variants[].pricing`` and ``variants[].attributes``.  The old generic walker
+    only accepted objects that contained ``name`` *and* a top-level ``price``, so
+    the real GraphQL catalogue was discovered but produced zero records.
     """
     records = []
+
+    def scalar(value):
+        if isinstance(value, (str, int, float, bool)):
+            return value
+        return ""
+
+    def attribute_values(obj):
+        attrs = {}
+        raw_attrs = obj.get("attributes") if isinstance(obj, dict) else None
+        if not isinstance(raw_attrs, list):
+            return attrs
+        for item in raw_attrs:
+            if not isinstance(item, dict):
+                continue
+            attr = item.get("attribute") if isinstance(item.get("attribute"), dict) else {}
+            slug = str(attr.get("slug") or attr.get("name") or "").strip().lower()
+            vals = item.get("values")
+            if not isinstance(vals, list):
+                vals = []
+            names = []
+            for v in vals:
+                if isinstance(v, dict):
+                    value = v.get("name") or v.get("value")
+                else:
+                    value = v
+                if value not in (None, ""):
+                    names.append(str(value).strip())
+            if names:
+                attrs[slug] = names[0] if len(names) == 1 else ", ".join(names)
+        return attrs
+
+    def first_nonempty(*values):
+        for value in values:
+            if value not in (None, "", []):
+                return value
+        return ""
+
+    def money_value(obj):
+        if not isinstance(obj, dict):
+            return ""
+        # Sale/current price is preferred.  Kasra Plus GraphQL nests it as
+        # variant.pricing.price.gross.amount.
+        pricing = obj.get("pricing") if isinstance(obj.get("pricing"), dict) else {}
+        price_obj = pricing.get("price") if isinstance(pricing.get("price"), dict) else {}
+        gross = price_obj.get("gross") if isinstance(price_obj.get("gross"), dict) else {}
+        for key in ("amount", "value"):
+            if gross.get(key) not in (None, ""):
+                return gross[key]
+        for key in ("price", "sale_price", "salePrice", "final_price", "finalPrice", "selling_price", "sellingPrice"):
+            if obj.get(key) not in (None, ""):
+                return obj[key]
+        return ""
+
+    def old_money(obj):
+        pricing = obj.get("pricing") if isinstance(obj.get("pricing"), dict) else {}
+        old_obj = pricing.get("priceUndiscounted") if isinstance(pricing.get("priceUndiscounted"), dict) else {}
+        gross = old_obj.get("gross") if isinstance(old_obj.get("gross"), dict) else {}
+        return first_nonempty(gross.get("amount"), obj.get("old_price"), obj.get("oldPrice"))
+
+    def build_product(parent, variant=None, fallback_url=""):
+        parent = parent if isinstance(parent, dict) else {}
+        variant = variant if isinstance(variant, dict) else {}
+        merged = dict(parent)
+        merged.update(variant)
+
+        attrs = {}
+        attrs.update(attribute_values(parent))
+        attrs.update(attribute_values(variant))
+
+        title = str(first_nonempty(
+            parent.get("name"), parent.get("title"), parent.get("product_name"), parent.get("productName"),
+            variant.get("name") if not variant.get("name", "").lower().strip() in {"مشکی", "سفید", "بنفش", "gray", "black", "white"} else ""
+        ) or "").strip()
+        if not title:
+            return None
+
+        slug = first_nonempty(parent.get("slug"), variant.get("slug"))
+        url = _abs(base_url, first_nonempty(
+            parent.get("url"), parent.get("link"), parent.get("product_url"), parent.get("productUrl"),
+            variant.get("url"), variant.get("link"), fallback_url if not slug else ""
+        ))
+        if slug and not any(parent.get(k) for k in ("url", "link", "product_url", "productUrl")):
+            url = _abs(base_url, "/product/" + str(slug).lstrip("/"))
+
+        sku = str(first_nonempty(variant.get("sku"), variant.get("SKU"), parent.get("sku"), parent.get("SKU")) or "").strip()
+        variant_id = first_nonempty(variant.get("id"), variant.get("variant_id"), variant.get("variantId"))
+        pid = sku or (str(variant_id).strip() if variant_id else "") or str(parent.get("id") or "").strip()
+        if not pid:
+            pid = _url_id(url) or _canonical_url(url) or _stable_id(url)
+
+        price = money_value(variant) or money_value(parent)
+        if price in (None, ""):
+            return None
+
+        stock = first_nonempty(
+            variant.get("quantityAvailable"), variant.get("stock"), variant.get("availability"),
+            variant.get("isAvailable"), variant.get("isAvailableForPurchase"),
+            parent.get("quantityAvailable"), parent.get("stock"), parent.get("availability"),
+            parent.get("isAvailable"), parent.get("isAvailableForPurchase")
+        )
+        if isinstance(stock, bool):
+            stock = "in_stock" if stock else "out_of_stock"
+        elif isinstance(stock, (int, float)):
+            stock = "in_stock" if stock > 0 else "out_of_stock"
+
+        color = first_nonempty(
+            variant.get("color"), variant.get("colour"), attrs.get("color"), attrs.get("colour"),
+            variant.get("name") if str(variant.get("name") or "").strip().lower() in {"black", "white", "gray", "grey", "blue", "red", "green", "purple", "مشکی", "سفید", "بنفش", "خاکستری"} else "",
+        )
+        brand = first_nonempty(variant.get("brand"), parent.get("brand"), parent.get("brand_name"), parent.get("brandName"), attrs.get("brand"))
+        image = first_nonempty(variant.get("image"), variant.get("image_url"), variant.get("imageUrl"), parent.get("image"), parent.get("image_url"), parent.get("imageUrl"), parent.get("thumbnail"))
+        storage = first_nonempty(variant.get("storage"), variant.get("capacity"), attrs.get("storage"), attrs.get("capacity"), attrs.get("storage-capacity"))
+        ram = first_nonempty(variant.get("ram"), variant.get("ram_gb"), variant.get("ramGb"), attrs.get("ram"), attrs.get("memory"))
+        old = old_money(variant) or old_money(parent)
+        gtin = first_nonempty(variant.get("gtin"), variant.get("ean"), variant.get("ean13"), variant.get("barcode"), parent.get("gtin"), parent.get("ean"))
+
+        extra = {
+            "sku": sku or None,
+            "gtin": str(gtin) if gtin not in (None, "") else None,
+            "old_price": parse_price(old) if old not in (None, "") else None,
+        }
+        if variant_id not in (None, ""):
+            extra["variant_id"] = str(variant_id)
+
+        return {
+            "id": pid, "title": title, "price": price, "stock": stock, "url": url,
+            "image": _abs(base_url, image), "color": color, "brand": brand,
+            "storage": storage, "ram": ram, "extra": extra,
+            "currency_detected": "toman",
+        }
+
     def walk(value, parent=None):
         if isinstance(value, dict):
-            parent = parent or {}
-            inherited = {}
-            for key in ("name", "title", "product_name", "productName", "url", "link", "product_url", "productUrl", "brand", "brand_name", "brandName", "image", "image_url", "imageUrl", "thumbnail"):
-                if value.get(key) not in (None, ""):
-                    inherited[key] = value[key]
-            merged = dict(parent)
-            merged.update(inherited)
-            # A variant/offer may have the price while the parent carries title.
-            if (merged.get("name") or merged.get("title")) and any(value.get(k) not in (None, "") for k in (
-                "price", "sale_price", "salePrice", "final_price", "finalPrice", "selling_price", "sellingPrice"
-            )):
-                candidate = dict(merged)
-                candidate.update(value)
-                rec = _json_record(candidate, base_url)
-                if rec:
-                    records.append(rec)
-            for v in value.values():
-                if isinstance(v, (dict, list)):
-                    walk(v, merged)
+            # A product node with variants must be flattened into one offer per
+            # variant; this is the critical path for the real Kasra Plus GraphQL API.
+            variants = value.get("variants")
+            if isinstance(variants, list) and variants:
+                for variant in variants:
+                    if isinstance(variant, dict):
+                        rec = build_product(value, variant)
+                        if rec:
+                            records.append(rec)
+                # Continue walking nested structures too, but avoid treating the
+                # parent product itself as an offer without a variant price.
+                for key, child in value.items():
+                    if key == "variants":
+                        continue
+                    if isinstance(child, (dict, list)):
+                        walk(child, value)
+                return
+
+            rec = build_product(value, parent if isinstance(parent, dict) else None)
+            if rec:
+                records.append(rec)
+            for child in value.values():
+                if isinstance(child, (dict, list)):
+                    walk(child, value)
         elif isinstance(value, list):
-            for v in value:
-                walk(v, parent)
+            for child in value:
+                walk(child, parent)
+
     walk(payload)
     return _dedupe(records)
 
 def parse_kasrapars_html(html: str, base_url: str) -> list:
     soup = BeautifulSoup(html, "lxml")
     records = []
-    json_records = []
 
-    # JSON-LD / application state is collected secondarily.
+    # JSON-LD / application state is preferred when present because it usually has real IDs/SKU/GTIN.
     blobs = []
     for script in soup.select("script[type='application/ld+json'], script#__NEXT_DATA__, script[type='application/json']"):
         txt = script.string or script.get_text()
@@ -425,7 +418,7 @@ def parse_kasrapars_html(html: str, base_url: str) -> list:
         for obj in _json_products(blob):
             rec = _json_record(obj, base_url)
             if rec:
-                json_records.append(rec)
+                records.append(rec)
 
     # DOM product cards. Generic selectors are deliberately conservative: a node is accepted only if it has a title and price.
     for node in _product_nodes(soup):
@@ -435,8 +428,6 @@ def parse_kasrapars_html(html: str, base_url: str) -> list:
             continue
         link = node.select_one("a[href]")
         url = _abs(base_url, link.get("href")) if link else ""
-        if not _looks_like_product_title(title, url):
-            continue
         pid = _first_attr(node, ("data-product-id", "data-product_id", "data-id", "data-sku", "data-code"))
         sku = _first_attr(node, ("data-sku", "data-product-sku", "data-code"))
         # A product card may share data-product-id across colour variants; SKU is the
@@ -463,54 +454,6 @@ def parse_kasrapars_html(html: str, base_url: str) -> list:
                         "image": _image(node, base_url), "color": color, "brand": brand,
                         "storage": storage, "ram": ram, "extra": extra, "currency_detected": unit})
 
-    records.extend(json_records)
-
-    # Generic fallback for JS-rendered sites whose card classes are opaque.
-    # Find small containers containing both a product-like link/title and a price.
-    existing_nodes = {id(n) for n in _product_nodes(soup)}
-    for price_el in soup.select("[itemprop='price'], [data-price], [data-sale-price], meta[itemprop='price'], span, div, p, strong, b"):
-        raw = price_el.get("content") if price_el.name == "meta" else (_first_attr(price_el, ("data-sale-price", "data-price")) or _text(price_el))
-        cls = " ".join(price_el.get("class") or []).lower() if getattr(price_el, "get", None) else ""
-        has_price_signal = (
-            "تومان" in raw or "ریال" in raw or _PRICE_WORDS.search(raw)
-            or "price" in cls or "cost" in cls or price_el.get("data-price") or price_el.get("data-sale-price")
-        )
-        if not raw or not has_price_signal or parse_price(raw) is None:
-            continue
-        container = price_el
-        for _ in range(6):
-            container = getattr(container, "parent", None)
-            if not container or not getattr(container, "name", None):
-                break
-            if id(container) in existing_nodes:
-                break
-            if len(_text(container)) > 900:
-                continue
-            link = container.select_one("a[href*='/product/']") or container.select_one("a[href]")
-            title = ""
-            if link:
-                title = _clean_title(_text(link) or _first_attr(link, ("title", "aria-label")))
-            if not title:
-                title = _title(container)
-            if title and link and _looks_like_product_title(title, _abs(base_url, link.get("href") or "")) and id(container) not in existing_nodes:
-                href = link.get("href") or ""
-                url = _abs(base_url, href)
-                pid = _first_attr(container, ("data-product-id", "data-product_id", "data-id", "data-sku", "data-code"))
-                sku = _first_attr(container, ("data-sku", "data-product-sku", "data-code"))
-                pid = sku or pid or _url_id(url) or _canonical_url(url) or _stable_id(url)
-                stock = _first_attr(container, ("data-stock", "data-availability")) or _stock(_text(container))
-                records.append({"id": pid, "title": title, "price": raw, "stock": stock, "url": url,
-                                "image": _image(container, base_url), "color": _first_attr(container, ("data-color", "data-colour")),
-                                "brand": _first_attr(container, ("data-brand", "data-brand-name")),
-                                "storage": _first_attr(container, ("data-storage", "data-capacity")),
-                                "ram": _first_attr(container, ("data-ram", "data-memory")),
-                                "extra": {"sku": sku or None, "old_price": None},
-                                "currency_detected": _currency_from_text(_text(container))})
-                break
-
-    # Final, high-confidence path: real product links + nearest price-bearing card.
-    records.extend(_product_link_fallback(soup, base_url))
-
     return _dedupe(records)
 
 
@@ -519,17 +462,8 @@ def _dedupe(records):
     for r in records:
         if not r.get("title") or r.get("price") in (None, ""):
             continue
-        if not _valid_offer_price(r.get("title"), parse_price(r.get("price"))):
-            continue
         variant = "|".join(str(r.get(k) or "") for k in ("color", "storage", "ram"))
-        rid = str(r.get("id") or "")
-        sku = str((r.get("extra") or {}).get("sku") or "")
-        if sku:
-            key = ("sku", sku)
-        elif rid:
-            key = ("id", rid, variant)
-        else:
-            key = ("fallback", str(r.get("title") or ""), str(r.get("price") or ""), _canonical_url(r.get("url") or ""))
+        key = (str(r.get("id") or ""), variant, _canonical_url(r.get("url") or ""))
         if key in seen:
             continue
         seen.add(key); out.append(r)
@@ -555,81 +489,6 @@ def _page_url(url, page, param="page"):
     q[param] = str(page)
     return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(q), ""))
 
-
-
-def _proxy_product_records(body: str, base_url: str):
-    """Parse product links/prices returned by a text/HTML fetch proxy.
-
-    GitHub-hosted runners can fail DNS resolution for the Iranian Kasra domain even
-    though the site is reachable elsewhere.  A proxy response may be either HTML or
-    Markdown/plain text, so keep this parser deliberately conservative: only links
-    whose path contains /product/ are considered product identities, and a nearby
-    explicit currency/price is required.
-    """
-    if not body:
-        return []
-    # If the proxy returned HTML, reuse the normal parser first.
-    try:
-        rows = parse_kasrapars_html(body, base_url)
-        if rows:
-            return rows
-    except Exception:
-        pass
-
-    lines = [re.sub(r"\s+", " ", x).strip() for x in body.splitlines()]
-    lines = [x for x in lines if x]
-    out = []
-    link_re = re.compile(r"(?:\[[^\]]+\]\()?((?:https?:)?//[^)\s]+/product/[^)\s]+)", re.I)
-    for i, line in enumerate(lines):
-        m = link_re.search(line)
-        if not m:
-            continue
-        url = m.group(1).rstrip('.,)')
-        # Markdown link text is the strongest title signal.
-        title = ""
-        lm = re.search(r"\[([^\]]+)\]\(", line)
-        if lm:
-            title = _clean_title(lm.group(1))
-        if not title:
-            title = _clean_title(re.sub(r"https?://[^\s]+", "", line))
-        if not _looks_like_product_title(title, url):
-            continue
-        nearby = []
-        for j in range(max(0, i - 3), min(len(lines), i + 6)):
-            txt = lines[j]
-            if not ("تومان" in txt or "ریال" in txt or re.search(r"\b(?:toman|rial)\b", txt, re.I)):
-                continue
-            val = parse_price(txt)
-            if val is not None and val > 0:
-                nearby.append((j, val, txt))
-        if not nearby:
-            continue
-        _, price, price_text = min(nearby, key=lambda x: abs(x[0] - i))
-        out.append({
-            "id": _url_id(url) or _stable_id(url),
-            "title": title,
-            "price": price,
-            "url": url,
-            "stock": _stock(" ".join(lines[max(0, i - 2):min(len(lines), i + 6)])),
-            "currency_detected": _currency_from_text(price_text),
-            "extra": {"proxy_fallback": True},
-        })
-    return _dedupe(out)
-
-
-
-
-def _proxy_urls(url: str):
-    from urllib.parse import quote
-    encoded = quote(url, safe="")
-    # Jina is generally good at reaching sites that are DNS/geo inaccessible from CI.
-    # AllOrigins is retained as a second independent fallback for raw HTML.
-    return [
-        f"https://r.jina.ai/http://{urlsplit(url).netloc}{urlsplit(url).path}"
-        + (f"?{urlsplit(url).query}" if urlsplit(url).query else ""),
-        f"https://r.jina.ai/{url}",
-        f"https://api.allorigins.win/raw?url={encoded}",
-    ]
 
 class KasraParsSource(Source):
     type_name = "kasrapars"
@@ -660,16 +519,13 @@ class KasraParsSource(Source):
                     ctype = (response.headers.get("content-type") or "").lower()
                     url = response.url
                     interesting = (
-                        "json" in ctype or "javascript" in ctype or any(token in url.lower() for token in (
-                            "/api/", "graphql", "ajax", "search", "product", "products", "catalog", "shop", "query", "filter"
+                        "json" in ctype or any(token in url.lower() for token in (
+                            "/api/", "graphql", "ajax", "search", "product", "products", "catalog", "shop"
                         ))
                     )
-                    if not interesting:
+                    if not interesting or len(response_urls) >= 80:
                         return
-                    # Do not cap responses before inspecting them. Modern catalog pages
-                    # can issue many asset/search requests before the actual product API.
-                    if len(response_urls) < 500:
-                        response_urls.append(url)
+                    response_urls.append(url)
                     body = response.text()
                     if not body or len(body) > 15_000_000:
                         return
@@ -694,7 +550,7 @@ class KasraParsSource(Source):
                             page.wait_for_load_state("networkidle", timeout=15000)
                         except Exception:
                             pass
-                        page.wait_for_timeout(int(self.o.get("browser_initial_wait_ms", 3000)))
+                        page.wait_for_timeout(1800)
 
                         # Parse whatever was rendered as a secondary path.
                         rows = parse_kasrapars_html(page.content(), initial)
@@ -705,7 +561,7 @@ class KasraParsSource(Source):
                         for _ in range(max_scrolls):
                             height = page.evaluate("document.body.scrollHeight")
                             page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-                            page.wait_for_timeout(int(self.o.get("browser_scroll_wait_ms", 1200)))
+                            page.wait_for_timeout(900)
                             if height == last_height:
                                 stable += 1
                             else:
@@ -744,32 +600,8 @@ class KasraParsSource(Source):
                 browser.close()
         return _dedupe(records), api_hits, response_urls
 
-
-    def _proxy_fallback(self, locations):
-        """Fetch through public read proxies when CI cannot resolve Kasra DNS."""
-        import requests
-        rows = []
-        tried = set()
-        timeout = int(self.o.get("proxy_timeout", 45))
-        for initial in locations:
-            for proxy in _proxy_urls(initial):
-                if proxy in tried:
-                    continue
-                tried.add(proxy)
-                try:
-                    r = requests.get(proxy, timeout=timeout, headers={"User-Agent": "Mozilla/5.0"})
-                    if r.status_code != 200 or not r.text:
-                        continue
-                    parsed = _proxy_product_records(r.text, initial)
-                    if parsed:
-                        rows.extend(parsed)
-                except Exception:
-                    continue
-        return _dedupe(rows), len(tried)
-
     def records(self, watchlist):
         locations = self.locations(watchlist)
-
         max_pages = int(self.o.get("max_pages", 100))
         pagination_param = str(self.o.get("pagination_param", "page"))
         follow_next = bool(self.o.get("follow_next", True))
@@ -821,20 +653,8 @@ class KasraParsSource(Source):
                 return out
             self.note = f"http+browser-empty; pages={pages}; api_hits={api_hits}; api_urls={len(api_urls)}"
 
-        if not out and bool(self.o.get("proxy_fallback", True)):
-            proxy_rows, proxy_attempts = self._proxy_fallback(locations)
-            out = _dedupe(out + proxy_rows)
-            if out:
-                detected_units.update(r.get("currency_detected") for r in out if r.get("currency_detected"))
-                self.raw_count = len(out)
-                self.catalog_titles = list(dict.fromkeys(r["title"] for r in out if r.get("title")))
-                self.note = (f"http+browser+proxy; pages={pages}; proxy_attempts={proxy_attempts}; "
-                             f"detected_currency={','.join(sorted(detected_units)) or 'unknown'}")
-                return out
-            self.note = f"http+browser+proxy-empty; pages={pages}; proxy_attempts={proxy_attempts}"
-
         if not out:
-            raise RuntimeError("KasraPars returned zero products (website HTTP, browser/API and proxy transports found none)")
+            raise RuntimeError("KasraPars returned zero products (HTTP parser and browser/API fallback both found none)")
         self.raw_count = len(out)
         self.catalog_titles = list(dict.fromkeys(r["title"] for r in out if r.get("title")))
         self.note = f"http+html/json; pages={pages}; detected_currency={','.join(sorted(detected_units)) or 'unknown'}"
