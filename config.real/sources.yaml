@@ -53,7 +53,10 @@ sources:
   max_products: 1000
 - name: kasrapars
   type: kasrapars
-  currency_unit: toman
+  # plus.kasrapars.ir is a Nuxt SPA: its HTML has NO product cards anymore.
+  # The catalog comes from the site's own public web API (this exact endpoint).
+  # ⚠️ API prices are RIAL (the site divides by 10 for display) — keep currency_unit: rial.
+  currency_unit: rial
   priority: 50
   min_expected_products: 20
   degraded_excluded: true
@@ -61,13 +64,11 @@ sources:
   rate_limit_per_sec: 0.5
   timeout: 30
   retries: 3
-  max_pages: 100
+  max_pages: 30
   follow_next: true
-  page_query_fallback: true
+  page_query_fallback: false
   pagination_param: page
-  urls:
-  - https://plus.kasrapars.ir/search/category-mobilephone?brand_slug%5Bxiaomi%5D=false
-  url: https://plus.kasrapars.ir/search/category-mobilephone?brand_slug%5Bxiaomi%5D=false
+  url: https://api.kasrapars.ir/api/web/v10/product/index-brand?expand=varieties.minOrderCount%2CletMeKnowOnAvailability%2Cvarieties%2CcartFeatures%2CcoworkerShortName%2Csrc%2CisInWishList%2CpromotionCoworker%2Cdescription%2CbriefFeatures&status_available=1&sort=-price&category_slug=mobilephone&page=1&responseFields%5B0%5D=items&responseFields%5B1%5D=filters
   browser_fallback: true
   page_timeout_ms: 90000
   browser_max_scrolls: 12

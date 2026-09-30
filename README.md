@@ -69,3 +69,25 @@ Run the Farnaa parser tests:
 ```bash
 pytest -q tests/test_farnaa.py
 ```
+
+
+## KasraPars source
+
+The project includes a `kasrapars` source for the wholesale catalog at `https://plus.kasrapars.ir/`.
+
+- **Since Mehr 1404 the site is a Nuxt/Vue SPA: its HTML contains no product cards at all.** The source therefore reads the site's own public web API (`api.kasrapars.ir/api/web/v10/product/index-brand`) and follows `_links.next` for pagination. The old HTML parser is kept as a fallback (fixtures / other site versions).
+- API prices are **RIAL** (the site divides by 10 for display) — `config.real/sources.yaml` therefore declares `currency_unit: rial` for kasrapars; the rial→toman conversion happens in the pipeline only.
+- Each colour/variety becomes a separate `Offer` keyed by the API variety id; Persian colour names are canonicalised by the central dictionary. Unavailable items are excluded server-side via `status_available=1`.
+- If the API is ever blocked, `browser_fallback: true` re-reads the same API responses from inside a real Chromium session.
+
+Run only KasraPars:
+
+```bash
+python -m pricecompare --config-dir config.real run --dry-run --only-source kasrapars
+```
+
+Run the KasraPars parser tests:
+
+```bash
+pytest -q tests/test_kasrapars.py
+```
