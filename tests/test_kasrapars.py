@@ -126,139 +126,51 @@ def test_kasrapars_browser_api_payload_flattens_parent_product_and_variant():
     assert rows[0]["brand"] == "Samsung"
 
 
-def test_kasrapars_rejects_ui_title_with_embedded_prices():
+def test_kasrapars_rejects_generic_ui_title_and_uses_product_slug():
     rows = parse_kasrapars_html("""
-    <div class='recommendation'>
-      <h3 class='title'>رنگ‌بندی و بهترین پیشنهاد</h3>
-      <span class='price'>۱٬۷۲۵٬۶۱۲</span>
-      <span class='price'>۳۷٬۵۲۵٬۶۱۲</span>
-    </div>
-    """, "https://plus.kasrapars.ir/search/category-mobilephone")
-    assert rows == []
-
-
-def test_kasrapars_fallback_uses_real_product_link_and_nearest_price():
-    rows = parse_kasrapars_html("""
-    <section class='opaque-card'>
-      <a href='/product/samsung-galaxy-a17-4g-1286gb'>
-        <span>Samsung Galaxy A17 4G 128GB RAM 6GB</span>
-      </a>
-      <div class='some-price'>۳۵٬۹۹۰٬۰۰۰ تومان</div>
-    </section>
+    <article class='product-card' data-product-id='x1'>
+      <a href='/product/samsung-galaxy-a56-5g-256gb'>رنگ‌بندی و بهترین پیشنهاد</a>
+      <span class='sale-price'>۱۰۰٬۰۰۰٬۰۰۰ تومان</span>
+    </article>
+    <article class='product-card' data-product-id='x2'>
+      <a href='/product/12345'>مشاهده محصول</a>
+      <span class='sale-price'>۲۰۰٬۰۰۰٬۰۰۰ تومان</span>
+    </article>
     """, "https://plus.kasrapars.ir/")
     assert len(rows) == 1
-    assert rows[0]["title"] == "Samsung Galaxy A17 4G 128GB RAM 6GB"
-    assert rows[0]["price"] == "۳۵٬۹۹۰٬۰۰۰ تومان"
-    assert rows[0]["url"].endswith("/product/samsung-galaxy-a17-4g-1286gb")
+    assert rows[0]["title"] == "samsung galaxy a56 5g 256gb"
 
 
-def test_kasrapars_proxy_markdown_fallback_extracts_product_and_price():
-    from pricecompare.sources.kasrapars import _proxy_product_records
-
-    body = """
-    # Kasra Plus
-    [Samsung Galaxy A17 4G 128/6GB](https://plus.kasrapars.ir/product/samsung-galaxy-a17-4g-1286gb)
-    35,990,000 تومان
-    """
-    rows = _proxy_product_records(body, "https://plus.kasrapars.ir/")
-    assert len(rows) == 1
-    assert rows[0]["title"] == "Samsung Galaxy A17 4G 128/6GB"
-    assert rows[0]["price"] == 35990000
-
-
-def test_kasrapars_telegram_fallback_extracts_mobile_price_and_ignores_accessory():
-    from pricecompare.sources.kasrapars import _telegram_product_records
-    body = """
-    <div class="tgme_widget_message_wrap">
-      <div class="tgme_widget_message_text">
-        🚀 بهترین قیمت موبایل اینجاست!<br>
-        📱 Galaxy A56 256/8<br>
-        💳 83/459/000<br>
-        🎧 Galaxy Buds Core<br>
-        💳 5/690/000
-      </div>
-    </div>
-    """
-    rows = _telegram_product_records(body, "https://plus.kasrapars.ir/")
-    assert len(rows) == 1
-    assert rows[0]["title"] == "Galaxy A56 256/8"
-    assert rows[0]["price"] == 83459000
-    assert rows[0]["extra"]["telegram_fallback"] is True
+def test_kasrapars_converts_explicit_rial_to_toman():
+    rows = parse_kasrapars_html("""
+    <article class='product-card' data-product-id='rial-1' data-sku='RIAL-1'>
+      <a class='product-title' href='/product/rial-1'>Samsung Galaxy A56 5G 256GB</a>
+      <span class='sale-price'>۱٬۰۷۳٬۹۰۰٬۰۰۰ ریال</span>
+      <span class='stock'>موجود</span>
+    </article>
+    """, "https://plus.kasrapars.ir/")
+    r = rows[0]
+    assert r["price"] == 107390000
+    assert r["currency_detected"] == "toman"
 
 
-def test_kasrapars_telegram_markdown_transport_extracts_phone_prices():
-    from pricecompare.sources.kasrapars import _telegram_product_records
-    body = """
-# کسری پلاس
-
-## چند قیمت داری؟!
-📱 Galaxy A56 256/8
-💳 83/799/000
-📱 Galaxy A07 64/4
-💳 21/799/000
-🎧 Redmi Buds 8 Active
-💳 3/099/000
-"""
-    rows = _telegram_product_records(body, "https://plus.kasrapars.ir/")
-    assert {r["title"] for r in rows} == {"Galaxy A56 256/8", "Galaxy A07 64/4"}
-    assert {r["price"] for r in rows} == {83799000, 21799000}
-
-
-def test_kasrapars_telegram_fallback_uses_proxy_when_direct_transport_fails(monkeypatch):
-    from pricecompare.sources.kasrapars import KasraParsSource
-
-    class Resp:
-        def __init__(self, status, text):
-            self.status_code = status
-            self.text = text
-
-    calls = []
-    def fake_get(url, **kwargs):
-        calls.append(url)
-        if url.startswith("https://r.jina.ai/"):
-            return Resp(200, """# Kasra Plus\n📱 Galaxy A56 256/8\n💳 83/799/000\n""")
-        return Resp(503, "")
-
-    import requests
-    monkeypatch.setattr(requests, "get", fake_get)
-    src = object.__new__(KasraParsSource)
-    src.o = {
-        "telegram_fallback_url": "https://t.me/s/kasrapars",
-        "telegram_fallback_timeout": 5,
-        "base_url": "https://plus.kasrapars.ir/",
-    }
-    rows, status, used = src._telegram_fallback()
-    assert len(rows) == 1
-    assert rows[0]["title"] == "Galaxy A56 256/8"
-    assert rows[0]["price"] == 83799000
-    assert status == 200
-    assert used.startswith("https://r.jina.ai/")
-    assert calls[0] == "https://t.me/s/kasrapars"
-
-
-def test_kasrapars_telegram_first_skips_site_when_telegram_has_rows(monkeypatch):
-    from pricecompare.sources.kasrapars import KasraParsSource
-
-    src = object.__new__(KasraParsSource)
-    src.o = {
-        "telegram_first": True,
-        "telegram_fallback": True,
-        "base_url": "https://plus.kasrapars.ir/",
-    }
-    src.locations = lambda watchlist: ["https://plus.kasrapars.ir/search/category-mobilephone"]
-    src._telegram_fallback = lambda: ([{
-        "id": "tg_a56",
-        "title": "Samsung Galaxy A56 256/8GB",
-        "price": 83990000,
-        "url": "",
-        "stock": "in_stock",
-        "currency_detected": "toman",
-        "extra": {"telegram_fallback": True},
-    }], 200, "https://t.me/s/kasrapars")
-    def fail_site(*args, **kwargs):
-        raise AssertionError("site transport must not run when telegram-first succeeds")
-    src.read = fail_site
+def test_kasrapars_http_empty_triggers_browser_fallback(monkeypatch):
+    cfg = _cfg(
+        url="https://plus.kasrapars.ir/search/category-mobilephone?brand_slug%5Bxiaomi%5D=false",
+        browser_fallback=True,
+    )
+    src = build_source(cfg)
+    monkeypatch.setattr(src, "read", lambda _: "<html><body>client rendered</body></html>")
+    monkeypatch.setattr(
+        src, "_browser_fallback",
+        lambda locations, max_scrolls: (
+            [{"id": "browser-1", "title": "Samsung Galaxy A56 5G 256GB", "price": "100000000",
+              "stock": "موجود", "url": "https://plus.kasrapars.ir/product/a56"}],
+            1,
+            ["https://plus.kasrapars.ir/api/products"],
+        ),
+    )
     rows = src.records([])
     assert len(rows) == 1
-    assert rows[0]["id"] == "tg_a56"
-    assert "telegram-first" in src.note
+    assert "http+browser-api" in src.note
+    assert "api_hits=1" in src.note

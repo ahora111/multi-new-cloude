@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import re
 from urllib.parse import parse_qsl, urlencode, urljoin, urlsplit, urlunsplit
 
@@ -20,6 +21,13 @@ from ..extract import parse_price
 _PRICE_WORDS = re.compile(r"(?:قیمت|price|sale|فروش|تخفیف|discount)", re.I)
 _IN_STOCK = ("موجود", "موجود در انبار", "آماده ارسال", "available", "in stock", "instock", "ready to ship")
 _OUT_STOCK = ("ناموجود", "اتمام موجودی", "تمام شد", "sold out", "out of stock", "unavailable", "به زودی", "به‌زودی")
+_GENERIC_TITLES = {
+    "رنگ‌بندی و بهترین پیشنهاد", "رنگ بندی و بهترین پیشنهاد",
+    "بهترین پیشنهاد", "مشاهده محصول", "خرید", "افزودن به سبد",
+    "view product", "buy", "add to cart", "select options",
+}
+_PRODUCT_PATH_MARKERS = ("/product/", "/products/", "/item/", "/p/")
+log = logging.getLogger("pricecompare.kasrapars")
 
 
 def _text(node) -> str:
@@ -145,92 +153,59 @@ def _field(node, labels):
     return ""
 
 
-_GENERIC_TITLES = {
-    "رنگ بندی و بهترین پیشنهاد", "رنگ‌بندی و بهترین پیشنهاد", "بهترین پیشنهاد",
-    "رنگ بندی", "رنگ‌بندی", "محصولات", "محصولات موجود", "دسته بندی", "دسته‌بندی",
-    "فیلتر", "مرتب سازی", "مرتب‌سازی", "جستجو", "search", "products", "product",
-}
+def _is_generic_title(value: str) -> bool:
+    t = re.sub(r"\s+", " ", str(value or "")).strip().lower()
+    return not t or t in {x.lower() for x in _GENERIC_TITLES}
 
 
-def _clean_title(value: str) -> str:
-    value = re.sub(r"\s+", " ", str(value or "")).strip(" -|:")
-    return value
+def _title_from_slug(url: str) -> str:
+    """Use a product slug only as a last-resort title source.
 
-
-def _looks_like_product_title(title: str, url: str = "") -> bool:
-    """Reject navigation/filter/UI labels that can accidentally carry prices.
-
-    Kasra Plus exposes a number of recommendation/filter blocks containing price
-    values but no product identity. Those must never become Offers.
+    We deliberately reject numeric-only/product-id slugs because they are not
+    meaningful product names and would be worse than dropping the offer.
     """
-    t = _clean_title(title)
-    if not t or len(t) < 3 or len(t) > 300:
-        return False
-    norm = re.sub(r"[\u200c\u200f\u200e]+", "", t).lower()
-    if norm in {re.sub(r"[\u200c\u200f\u200e]+", "", x).lower() for x in _GENERIC_TITLES}:
-        return False
-    generic_tokens = ("رنگ بندی", "رنگ‌بندی", "بهترین پیشنهاد", "فیلتر محصولات", "مرتب سازی", "مرتب‌سازی")
-    if any(x in norm for x in generic_tokens):
-        return False
-    # A real product URL is strong evidence even for a short Persian title.
-    if "/product/" in (url or "").lower():
-        return True
-    # Otherwise require at least a model-like signal (digit or common mobile brand).
-    brands = ("samsung", "galaxy", "xiaomi", "redmi", "poco", "apple", "iphone",
-              "honor", "huawei", "nokia", "motorola", "tecno", "infinix", "oppo",
-              "oneplus", "realme", "tcl", "glx", "vivo", "hanofer", "generalluxe",
-              "جنرال لوکس", "سامسونگ", "شیائومی", "اپل", "آیفون", "نوکیا", "آنر")
-    return bool(re.search(r"\d", norm) or any(b in norm for b in brands))
+    path = urlsplit(url or "").path.rstrip("/")
+    marker = next((m for m in _PRODUCT_PATH_MARKERS if m in path.lower()), None)
+    if not marker:
+        return ""
+    slug = path.lower().split(marker, 1)[1].strip("/")
+    if not slug or slug.isdigit():
+        return ""
+    words = re.sub(r"[-_]+", " ", slug)
+    words = re.sub(r"\s+", " ", words).strip()
+    if not words or _is_generic_title(words):
+        return ""
+    return words[:300]
 
 
-def _product_link_fallback(soup, base_url):
-    """Extract cards by their real /product/ link when CSS classes are opaque."""
-    rows = []
-    seen = set()
-    for link in soup.select("a[href*='/product/']"):
-        href = link.get("href") or ""
-        url = _abs(base_url, href)
-        title = _clean_title(_text(link) or _first_attr(link, ("title", "aria-label")))
-        if not _looks_like_product_title(title, url):
-            continue
-        # Find the nearest compact ancestor containing an actual price.
-        node = link
-        for _ in range(8):
-            node = getattr(node, "parent", None)
-            if not node or not getattr(node, "name", None):
-                break
-            text = _text(node)
-            if len(text) > 1000:
-                continue
-            price, price_raw = _price(node)
-            if price is None:
-                continue
-            pid = _first_attr(node, ("data-product-id", "data-product_id", "data-id", "data-sku", "data-code"))
-            sku = _first_attr(node, ("data-sku", "data-product-sku", "data-code"))
-            pid = sku or pid or _url_id(url) or _canonical_url(url) or _stable_id(url)
-            color = _first_attr(node, ("data-color", "data-colour")) or _text(node.select_one(".color, .colour, .product-color, [itemprop=color]"))
-            brand = _first_attr(node, ("data-brand", "data-brand-name")) or _text(node.select_one(".brand, .product-brand, [itemprop=brand]"))
-            stock = _first_attr(node, ("data-stock", "data-availability")) or _stock(text)
-            key = (pid, str(price_raw), color)
-            if key not in seen:
-                seen.add(key)
-                rows.append({"id": pid, "title": title, "price": price_raw, "stock": stock, "url": url,
-                             "image": _image(node, base_url), "color": color, "brand": brand,
-                             "storage": _first_attr(node, ("data-storage", "data-capacity")),
-                             "ram": _first_attr(node, ("data-ram", "data-memory")),
-                             "extra": {"sku": sku or None, "old_price": None},
-                             "currency_detected": _currency_from_text(text)})
-            break
-    return rows
-
-
-def _title(node):
-    for sel in ("[itemprop='name']", "h1", "h2", "h3", "h4", ".product-title", ".product-name", ".title", "[class*='product'][class*='title']"):
+def _title(node, base_url=""):
+    # Prefer semantic/product-specific fields and links over generic UI labels.
+    for sel in (
+        "[itemprop='name']", "h1", "h2", "h3", "h4",
+        ".product-title", ".product-name", "[class*='product'][class*='title']",
+    ):
         el = node.select_one(sel)
         if el:
             t = _text(el)
-            if t and len(t) <= 300:
-                return _clean_title(t)
+            if t and len(t) <= 300 and not _is_generic_title(t):
+                return t
+
+    for a in node.select("a[href]"):
+        t = _text(a)
+        href = a.get("href") or ""
+        if t and len(t) <= 300 and not _is_generic_title(t):
+            return t
+        slug_title = _title_from_slug(_abs(base_url, href))
+        if slug_title:
+            return slug_title
+
+    # Keep the generic `.title` selector only as a source when its text is a
+    # real product name. Generic CTA/category labels are never product titles.
+    el = node.select_one(".title")
+    if el:
+        t = _text(el)
+        if t and len(t) <= 300 and not _is_generic_title(t):
+            return t
     return ""
 
 
@@ -251,42 +226,6 @@ def _product_nodes(soup):
 
 
 def _json_products(value):
-    """Find product-like objects in JSON/embedded app state.
-
-    Supports both direct prices and Schema.org JSON-LD where the price lives
-    under ``offers`` / ``aggregateOffer``.
-    """
-    out = []
-    def walk(x, parent=None):
-        if isinstance(x, dict):
-            keys = {str(k).lower() for k in x}
-            has_title = bool(x.get("name") or x.get("title") or x.get("product_name") or x.get("productName"))
-            price_keys = {"price", "sale_price", "saleprice", "final_price", "finalprice", "selling_price", "sellingprice"}
-            if has_title and (keys & price_keys):
-                out.append(x)
-            # JSON-LD Product commonly stores price in offers.
-            if has_title:
-                for offer_key in ("offers", "offer", "aggregateOffer", "aggregate_offer"):
-                    offers = x.get(offer_key)
-                    if isinstance(offers, dict):
-                        merged = dict(x)
-                        merged.update(offers)
-                        if any(merged.get(k) not in (None, "") for k in price_keys):
-                            out.append(merged)
-                    elif isinstance(offers, list):
-                        for offer in offers:
-                            if isinstance(offer, dict):
-                                merged = dict(x); merged.update(offer)
-                                if any(merged.get(k) not in (None, "") for k in price_keys):
-                                    out.append(merged)
-            for v in x.values():
-                walk(v, x)
-        elif isinstance(x, list):
-            for v in x:
-                walk(v, parent)
-    walk(value)
-    return out
-
     """Find product-like objects in JSON/embedded app state without assuming a framework."""
     out = []
     def walk(x):
@@ -311,8 +250,6 @@ def _json_record(obj, base_url, fallback_url=""):
         return ""
     title = str(pick("name", "title", "product_name", "productName") or "").strip()
     if not title:
-        return None
-    if not _looks_like_product_title(title, str(pick("url", "link", "product_url", "productUrl") or fallback_url)):
         return None
     url = _abs(base_url, pick("url", "link", "product_url", "productUrl") or fallback_url)
     pid = str(pick("id", "product_id", "productId", "sku", "code") or "").strip()
@@ -382,34 +319,57 @@ def _json_response_records(payload, base_url):
 def parse_kasrapars_html(html: str, base_url: str) -> list:
     soup = BeautifulSoup(html, "lxml")
     records = []
-    json_records = []
 
-    # JSON-LD / application state is collected secondarily.
+    # JSON-LD / application state is preferred when present because it usually has real IDs/SKU/GTIN.
     blobs = []
     for script in soup.select("script[type='application/ld+json'], script#__NEXT_DATA__, script[type='application/json']"):
         txt = script.string or script.get_text()
         if not txt.strip():
             continue
         try:
-            blobs.append(json.loads(txt))
+            blobs.append((script.get("type", "").lower(), script.get("id", ""), json.loads(txt)))
         except Exception:
             continue
-    for blob in blobs:
+    for script_type, script_id, blob in blobs:
+        # Application state/API payloads may keep product title on a parent and
+        # price/SKU/color on a nested variant.
+        if script_id == "__NEXT_DATA__" or script_type == "application/json":
+            records.extend(_json_response_records(blob, base_url))
+        # JSON-LD Product/Offer is handled explicitly; it is metadata enrichment,
+        # while the DOM card remains authoritative for the actual visible offer.
+        def walk_ld(value):
+            if isinstance(value, dict):
+                if str(value.get("@type", "")).lower() == "product":
+                    title = value.get("name")
+                    offers = value.get("offers")
+                    if title and isinstance(offers, dict):
+                        obj = dict(value)
+                        obj.update(offers)
+                        rec = _json_record(obj, base_url)
+                        if rec:
+                            rec["extra"] = {**(rec.get("extra") or {}), "_metadata_only": True}
+                            records.append(rec)
+                for child in value.values():
+                    if isinstance(child, (dict, list)):
+                        walk_ld(child)
+            elif isinstance(value, list):
+                for child in value:
+                    walk_ld(child)
+        if script_type == "application/ld+json":
+            walk_ld(blob)
         for obj in _json_products(blob):
             rec = _json_record(obj, base_url)
             if rec:
-                json_records.append(rec)
+                records.append(rec)
 
     # DOM product cards. Generic selectors are deliberately conservative: a node is accepted only if it has a title and price.
     for node in _product_nodes(soup):
-        title = _title(node)
+        title = _title(node, base_url)
         price, price_raw = _price(node)
         if not title or price is None:
             continue
         link = node.select_one("a[href]")
         url = _abs(base_url, link.get("href")) if link else ""
-        if not _looks_like_product_title(title, url):
-            continue
         pid = _first_attr(node, ("data-product-id", "data-product_id", "data-id", "data-sku", "data-code"))
         sku = _first_attr(node, ("data-sku", "data-product-sku", "data-code"))
         # A product card may share data-product-id across colour variants; SKU is the
@@ -436,74 +396,35 @@ def parse_kasrapars_html(html: str, base_url: str) -> list:
                         "image": _image(node, base_url), "color": color, "brand": brand,
                         "storage": storage, "ram": ram, "extra": extra, "currency_detected": unit})
 
-    records.extend(json_records)
-
-    # Generic fallback for JS-rendered sites whose card classes are opaque.
-    # Find small containers containing both a product-like link/title and a price.
-    existing_nodes = {id(n) for n in _product_nodes(soup)}
-    for price_el in soup.select("[itemprop='price'], [data-price], [data-sale-price], meta[itemprop='price'], span, div, p, strong, b"):
-        raw = price_el.get("content") if price_el.name == "meta" else (_first_attr(price_el, ("data-sale-price", "data-price")) or _text(price_el))
-        cls = " ".join(price_el.get("class") or []).lower() if getattr(price_el, "get", None) else ""
-        has_price_signal = (
-            "تومان" in raw or "ریال" in raw or _PRICE_WORDS.search(raw)
-            or "price" in cls or "cost" in cls or price_el.get("data-price") or price_el.get("data-sale-price")
-        )
-        if not raw or not has_price_signal or parse_price(raw) is None:
-            continue
-        container = price_el
-        for _ in range(6):
-            container = getattr(container, "parent", None)
-            if not container or not getattr(container, "name", None):
-                break
-            if id(container) in existing_nodes:
-                break
-            if len(_text(container)) > 900:
-                continue
-            link = container.select_one("a[href*='/product/']") or container.select_one("a[href]")
-            title = ""
-            if link:
-                title = _clean_title(_text(link) or _first_attr(link, ("title", "aria-label")))
-            if not title:
-                title = _title(container)
-            if title and link and _looks_like_product_title(title, _abs(base_url, link.get("href") or "")) and id(container) not in existing_nodes:
-                href = link.get("href") or ""
-                url = _abs(base_url, href)
-                pid = _first_attr(container, ("data-product-id", "data-product_id", "data-id", "data-sku", "data-code"))
-                sku = _first_attr(container, ("data-sku", "data-product-sku", "data-code"))
-                pid = sku or pid or _url_id(url) or _canonical_url(url) or _stable_id(url)
-                stock = _first_attr(container, ("data-stock", "data-availability")) or _stock(_text(container))
-                records.append({"id": pid, "title": title, "price": raw, "stock": stock, "url": url,
-                                "image": _image(container, base_url), "color": _first_attr(container, ("data-color", "data-colour")),
-                                "brand": _first_attr(container, ("data-brand", "data-brand-name")),
-                                "storage": _first_attr(container, ("data-storage", "data-capacity")),
-                                "ram": _first_attr(container, ("data-ram", "data-memory")),
-                                "extra": {"sku": sku or None, "old_price": None},
-                                "currency_detected": _currency_from_text(_text(container))})
-                break
-
-    # Final, high-confidence path: real product links + nearest price-bearing card.
-    records.extend(_product_link_fallback(soup, base_url))
-
     return _dedupe(records)
 
 
 def _dedupe(records):
-    out, seen = [], set()
-    for r in records:
-        if not r.get("title") or r.get("price") in (None, ""):
-            continue
+    # Rich DOM/API records win over metadata-only records for the same URL/title/price.
+    normalized = [_normalize_record_unit(r) for r in records]
+    normalized = [r for r in normalized if r.get("title") and r.get("price") not in (None, "")]
+    normalized.sort(
+        key=lambda r: (
+            bool(r.get("extra", {}).get("_metadata_only")),
+            -sum(bool(r.get(k)) for k in ("color", "storage", "ram", "brand", "image")),
+            -bool(r.get("extra", {}).get("sku")),
+        )
+    )
+    out, seen, visible = [], set(), set()
+    for r in normalized:
+        url_key = _canonical_url(r.get("url") or "")
         variant = "|".join(str(r.get(k) or "") for k in ("color", "storage", "ram"))
-        rid = str(r.get("id") or "")
-        sku = str((r.get("extra") or {}).get("sku") or "")
-        if sku:
-            key = ("sku", sku)
-        elif rid:
-            key = ("id", rid, variant)
-        else:
-            key = ("fallback", str(r.get("title") or ""), str(r.get("price") or ""), _canonical_url(r.get("url") or ""))
+        key = (str(r.get("id") or ""), variant, url_key)
         if key in seen:
             continue
-        seen.add(key); out.append(r)
+        visible_key = (url_key, str(r.get("title") or "").strip().lower(), parse_price(r.get("price")))
+        if url_key and visible_key in visible:
+            # A metadata/API duplicate without variant details should not become
+            # a second offer beside the richer visible card.
+            continue
+        seen.add(key)
+        visible.add(visible_key)
+        out.append(r)
     return out
 
 
@@ -527,224 +448,30 @@ def _page_url(url, page, param="page"):
     return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(q), ""))
 
 
-
-def _proxy_product_records(body: str, base_url: str):
-    """Parse product links/prices returned by a text/HTML fetch proxy.
-
-    GitHub-hosted runners can fail DNS resolution for the Iranian Kasra domain even
-    though the site is reachable elsewhere.  A proxy response may be either HTML or
-    Markdown/plain text, so keep this parser deliberately conservative: only links
-    whose path contains /product/ are considered product identities, and a nearby
-    explicit currency/price is required.
-    """
-    if not body:
-        return []
-    # If the proxy returned HTML, reuse the normal parser first.
-    try:
-        rows = parse_kasrapars_html(body, base_url)
-        if rows:
-            return rows
-    except Exception:
-        pass
-
-    lines = [re.sub(r"\s+", " ", x).strip() for x in body.splitlines()]
-    lines = [x for x in lines if x]
-    out = []
-    link_re = re.compile(r"(?:\[[^\]]+\]\()?((?:https?:)?//[^)\s]+/product/[^)\s]+)", re.I)
-    for i, line in enumerate(lines):
-        m = link_re.search(line)
-        if not m:
-            continue
-        url = m.group(1).rstrip('.,)')
-        # Markdown link text is the strongest title signal.
-        title = ""
-        lm = re.search(r"\[([^\]]+)\]\(", line)
-        if lm:
-            title = _clean_title(lm.group(1))
-        if not title:
-            title = _clean_title(re.sub(r"https?://[^\s]+", "", line))
-        if not _looks_like_product_title(title, url):
-            continue
-        nearby = []
-        for j in range(max(0, i - 3), min(len(lines), i + 6)):
-            txt = lines[j]
-            if not ("تومان" in txt or "ریال" in txt or re.search(r"\b(?:toman|rial)\b", txt, re.I)):
-                continue
-            val = parse_price(txt)
-            if val is not None and val > 0:
-                nearby.append((j, val, txt))
-        if not nearby:
-            continue
-        _, price, price_text = min(nearby, key=lambda x: abs(x[0] - i))
-        out.append({
-            "id": _url_id(url) or _stable_id(url),
-            "title": title,
-            "price": price,
-            "url": url,
-            "stock": _stock(" ".join(lines[max(0, i - 2):min(len(lines), i + 6)])),
-            "currency_detected": _currency_from_text(price_text),
-            "extra": {"proxy_fallback": True},
-        })
-    return _dedupe(out)
+def _to_toman(value):
+    """Convert a parsed numeric price from rial to toman without float rounding."""
+    if value in (None, ""):
+        return value
+    parsed = parse_price(value)
+    if parsed is None:
+        return value
+    return parsed // 10
 
 
+def _normalize_record_unit(record):
+    """Kasra config is declared as toman; convert records explicitly labelled rial."""
+    if record.get("currency_detected") != "rial":
+        return record
+    record = dict(record)
+    if record.get("price") not in (None, ""):
+        record["price"] = _to_toman(record["price"])
+    extra = dict(record.get("extra") or {})
+    if extra.get("old_price") not in (None, ""):
+        extra["old_price"] = _to_toman(extra["old_price"])
+    record["extra"] = extra
+    record["currency_detected"] = "toman"
+    return record
 
-_TELEGRAM_MOBILE_HINTS = (
-    "samsung", "galaxy", "xiaomi", "redmi", "poco", "iphone", "apple",
-    "honor", "huawei", "nokia", "motorola", "tecno", "infinix", "oppo",
-    "oneplus", "realme", "tcl", "glx", "vivo", "hanofer", "generalluxe",
-    "جنرال لوکس", "سامسونگ", "شیائومی", "ردمی", "پوکو", "اپل", "آیفون",
-    "آنر", "هواوی", "نوکیا", "موتورولا", "تکنو", "اینفینیکس", "اوپو",
-    "وان پلاس", "ریلمی", "نوکیا", "گوشی موبایل", "گوشی موبايل", "گوشی",
-)
-_TELEGRAM_NON_MOBILE_HINTS = (
-    "airpods", "buds", "powerbank", "پاوربانک", "هندزفری", "هدفون",
-    "شارژر", "کابل", "watch", "ساعت هوشمند", "speaker", "اسپیکر",
-    "soundcore", "party box", "qcy", "mouse", "کیبورد", "کنسول",
-)
-
-def _telegram_mobile_title(title: str) -> bool:
-    t = _clean_title(title).lower()
-    if not _looks_like_product_title(t, ""):
-        return False
-    if any(x in t for x in _TELEGRAM_NON_MOBILE_HINTS):
-        return False
-    return any(x in t for x in _TELEGRAM_MOBILE_HINTS) or bool(
-        re.search(r"\b(?:a\d{2,3}|s\d{2,3}|note\s*\d+|redmi\s+[a-z]?\d+|iphone\s*\d+)\b", t, re.I)
-    )
-
-def _telegram_product_records(body: str, base_url: str):
-    """Extract mobile price offers from Telegram HTML *or* Markdown/plain text.
-
-    This is a degraded fallback only: Telegram posts are a promotional subset of
-    the catalog, not a replacement for the live Kasra Plus catalog.
-    """
-    if not body:
-        return []
-
-    # Telegram preview can arrive as normal HTML, while read proxies such as Jina
-    # commonly return Markdown. Support both forms so a CI runner does not depend
-    # on one particular transport.
-    soup = BeautifulSoup(body, "html.parser")
-    blocks = soup.select("div.tgme_widget_message_wrap") or soup.select("div.tgme_widget_message")
-    if blocks:
-        chunks = []
-        for block in blocks:
-            text_node = block.select_one(".tgme_widget_message_text")
-            if not text_node:
-                continue
-            chunks.append((
-                text_node.get_text("\n", strip=True),
-                [(a.get_text(" ", strip=True), a.get("href") or "") for a in text_node.select("a[href]")],
-            ))
-        return _telegram_text_records(chunks, base_url)
-
-    # Markdown/plain text fallback. Keep each paragraph/post separated where
-    # possible, but also support proxies that flatten the channel into one block.
-    text = soup.get_text("\n", strip=True) if soup.find() else body
-    return _telegram_text_records([(text, [])], base_url)
-
-
-def _telegram_text_records(chunks, base_url):
-    out = []
-    for raw_text, anchors in chunks:
-        lines = [re.sub(r"\s+", " ", x).strip() for x in str(raw_text or "").splitlines()]
-        lines = [x for x in lines if x]
-        if not lines:
-            continue
-
-        product_links = [(_clean_title(label), href) for label, href in anchors
-                         if "/product/" in (href or "").lower()]
-
-        # Markdown link syntax may survive a read proxy even when there are no HTML anchors.
-        for idx, line in enumerate(lines):
-            for lm in re.finditer(r"\[([^\]]+)\]\((https?://[^)]+/product/[^)]+)\)", line, re.I):
-                product_links.append((_clean_title(lm.group(1)), lm.group(2)))
-            lines[idx] = re.sub(r"\[([^\]]+)\]\((https?://[^)]+)\)", r"\1", line)
-
-        for i, line in enumerate(lines):
-            has_currency = ("تومان" in line or "ریال" in line or
-                            re.search(r"\b(?:toman|rial)\b", line, re.I))
-            # Kasra Telegram commonly formats prices as 83/459/000 without a currency unit.
-            normalized_digits = str(line).translate(str.maketrans(
-                "۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩", "01234567890123456789"))
-            numeric_only = re.sub(r"[^0-9.,٬،٫/]", "", normalized_digits)
-            looks_like_price = (
-                bool(re.search(r"\d{1,3}(?:[\d.,٬،٫/]{3,})", numeric_only))
-                and len(re.sub(r"\D", "", numeric_only)) >= 6
-            )
-            if not (has_currency or looks_like_price):
-                continue
-            price = parse_price(line)
-            if price is None or price <= 0:
-                continue
-
-            # Find the closest preceding mobile-looking title, stopping at a new
-            # promo/header boundary. This handles both Telegram HTML and flattened Markdown.
-            candidates = []
-            for j in range(max(0, i - 6), i):
-                candidate = re.sub(r"^[^\w\u0600-\u06ff]+", "", lines[j]).strip(" -:|*_")
-                candidate = re.sub(r"^(?:قیمت(?:\s+ویژه)?|price)\s*[:：-]?\s*", "", candidate, flags=re.I)
-                if not candidate:
-                    continue
-                low = candidate.lower()
-                if any(x in low for x in _TELEGRAM_NON_MOBILE_HINTS):
-                    # An accessory between the phone title and this price is a hard
-                    # boundary. Do not let the price of Buds/AirPods/etc. attach to
-                    # the previous phone title.
-                    candidates = []
-                    break
-                if any(x in low for x in ("کسری پلاس", "بهترین قیمت", "ارسال سریع", "امکان خرید", "۳۰ دقیقه", "30 دقیقه")):
-                    continue
-                if _telegram_mobile_title(candidate):
-                    candidates.append(candidate)
-            title = candidates[-1] if candidates else ""
-
-            url = ""
-            if product_links:
-                if title:
-                    for label, href in product_links:
-                        if label and (label in title or title in label):
-                            url = href
-                            break
-                if not url:
-                    # Only attach a product link if its label itself looks mobile-like;
-                    # never attach an unrelated accessory URL to a phone price.
-                    for label, href in reversed(product_links):
-                        if _telegram_mobile_title(label):
-                            url = href
-                            if not title:
-                                title = label
-                            break
-
-            if not title or not _telegram_mobile_title(title):
-                continue
-            url = urljoin(base_url, url) if url else ""
-            pid = _url_id(url) if url else ""
-            if not pid:
-                pid = "tg_" + hashlib.sha1((title + "|" + str(price)).encode("utf-8")).hexdigest()
-            out.append({
-                "id": pid,
-                "title": title,
-                "price": price,
-                "url": url,
-                "stock": "in_stock",
-                "currency_detected": _currency_from_text(line) or "toman",
-                "extra": {"telegram_fallback": True},
-            })
-    return _dedupe(out)
-
-def _proxy_urls(url: str):
-    from urllib.parse import quote
-    encoded = quote(url, safe="")
-    # Jina is generally good at reaching sites that are DNS/geo inaccessible from CI.
-    # AllOrigins is retained as a second independent fallback for raw HTML.
-    return [
-        f"https://r.jina.ai/http://{urlsplit(url).netloc}{urlsplit(url).path}"
-        + (f"?{urlsplit(url).query}" if urlsplit(url).query else ""),
-        f"https://r.jina.ai/{url}",
-        f"https://api.allorigins.win/raw?url={encoded}",
-    ]
 
 class KasraParsSource(Source):
     type_name = "kasrapars"
@@ -764,6 +491,7 @@ class KasraParsSource(Source):
         records, visited = [], set()
         api_hits = 0
         response_urls = []
+        browser_diag = []
         with sync_playwright() as pw:
             browser = pw.chromium.launch(headless=True)
             context = browser.new_context(viewport={"width": 1440, "height": 1000}, locale="fa-IR")
@@ -775,16 +503,13 @@ class KasraParsSource(Source):
                     ctype = (response.headers.get("content-type") or "").lower()
                     url = response.url
                     interesting = (
-                        "json" in ctype or "javascript" in ctype or any(token in url.lower() for token in (
-                            "/api/", "graphql", "ajax", "search", "product", "products", "catalog", "shop", "query", "filter"
+                        "json" in ctype or any(token in url.lower() for token in (
+                            "/api/", "graphql", "ajax", "search", "product", "products", "catalog", "shop"
                         ))
                     )
-                    if not interesting:
+                    if not interesting or len(response_urls) >= 80:
                         return
-                    # Do not cap responses before inspecting them. Modern catalog pages
-                    # can issue many asset/search requests before the actual product API.
-                    if len(response_urls) < 500:
-                        response_urls.append(url)
+                    response_urls.append(url)
                     body = response.text()
                     if not body or len(body) > 15_000_000:
                         return
@@ -809,10 +534,30 @@ class KasraParsSource(Source):
                             page.wait_for_load_state("networkidle", timeout=15000)
                         except Exception:
                             pass
-                        page.wait_for_timeout(int(self.o.get("browser_initial_wait_ms", 3000)))
+                        # The catalog is client-rendered on some deployments.
+                        # Wait for a real product-card signal, not just <body>.
+                        selectors = (
+                            "[data-product-id]", "[data-product]", "[data-sku]",
+                            "article.product", "li.product", ".product-card",
+                            ".product-item", "[itemtype*='Product']",
+                        )
+                        for selector in selectors:
+                            try:
+                                page.wait_for_selector(selector, timeout=3000)
+                                break
+                            except Exception:
+                                continue
+                        page.wait_for_timeout(1200)
 
                         # Parse whatever was rendered as a secondary path.
-                        rows = parse_kasrapars_html(page.content(), initial)
+                        rendered_html = page.content()
+                        rows = parse_kasrapars_html(rendered_html, initial)
+                        browser_diag.append({
+                            "page_title": page.title(),
+                            "final_url": page.url,
+                            "html_length": len(rendered_html),
+                            "product_cards": len(_product_nodes(BeautifulSoup(rendered_html, "lxml"))),
+                        })
                         records.extend(rows)
 
                         stable = 0
@@ -820,7 +565,7 @@ class KasraParsSource(Source):
                         for _ in range(max_scrolls):
                             height = page.evaluate("document.body.scrollHeight")
                             page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-                            page.wait_for_timeout(int(self.o.get("browser_scroll_wait_ms", 1200)))
+                            page.wait_for_timeout(900)
                             if height == last_height:
                                 stable += 1
                             else:
@@ -857,184 +602,11 @@ class KasraParsSource(Source):
             finally:
                 context.close()
                 browser.close()
+        self._browser_diag = browser_diag
         return _dedupe(records), api_hits, response_urls
-
-
-    def _telegram_fallback(self):
-        """Read Kasra's public Telegram channel as the primary catalog transport.
-
-        GitHub-hosted runners can be unable to resolve/reach plus.kasrapars.ir while
-        Telegram's public preview remains reachable.  We therefore treat Telegram
-        as a first-class source transport, not merely an emergency fallback.
-        """
-        import requests
-        from urllib.parse import quote, urlsplit, parse_qs
-
-        channel_url = str(self.o.get("telegram_fallback_url", "https://t.me/s/kasrapars")).strip()
-        timeout = int(self.o.get("telegram_fallback_timeout", 30))
-        max_pages = max(1, int(self.o.get("telegram_max_pages", 8)))
-        candidates = []
-        base_candidates = [
-            channel_url,
-            "https://www.t.me/s/kasrapars",
-            "https://telegram.me/s/kasrapars",
-        ]
-        # Direct Telegram first. Read proxies are transport fallbacks only.
-        for u in base_candidates:
-            if u not in candidates:
-                candidates.append(u)
-        for u in list(base_candidates[:1]):
-            candidates.extend([
-                f"https://r.jina.ai/http://{urlsplit(u).netloc}{urlsplit(u).path}",
-                f"https://r.jina.ai/{u}",
-                f"https://api.allorigins.win/raw?url={quote(u, safe='')}",
-            ])
-
-        tried = []
-        rows = []
-        seen_ids = set()
-        next_before = None
-
-        def parse_page(body, page_url):
-            parsed = _telegram_product_records(body, self.o.get("base_url", "https://plus.kasrapars.ir/"))
-            # The HTML preview exposes data-post="kasrapars/<message_id>".  The
-            # smallest ID lets us walk backwards through older price-list posts.
-            ids = []
-            for m in re.finditer(r'data-post=["\']kasrapars/(\d+)', body or "", re.I):
-                try:
-                    ids.append(int(m.group(1)))
-                except Exception:
-                    pass
-            return parsed, (min(ids) if ids else None)
-
-        def request_url(u):
-            r = requests.get(u, timeout=timeout, headers={
-                "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/154 Safari/537.36",
-                "Accept": "text/html,application/xhtml+xml,text/plain,text/markdown;q=0.9,*/*;q=0.8",
-            }, allow_redirects=True)
-            return r
-
-        # Try direct/proxy HTTP transports and paginate backwards when the preview
-        # exposes message IDs. A single promotional page is not enough for a catalog.
-        working_base = None
-        for transport in candidates:
-            try:
-                r = request_url(transport)
-                tried.append(f"{transport}={r.status_code}")
-                if r.status_code != 200 or not r.text:
-                    continue
-                page_rows, min_id = parse_page(r.text, transport)
-                if page_rows:
-                    rows.extend(page_rows)
-                    working_base = transport
-                    next_before = min_id
-                    break
-            except Exception as exc:
-                tried.append(f"{transport}=ERR:{type(exc).__name__}")
-
-        # Continue pagination on the same working transport where possible.
-        if working_base and next_before:
-            for _ in range(max_pages - 1):
-                if not next_before or next_before <= 1:
-                    break
-                sep = "&" if "?" in working_base else "?"
-                page_url = f"{working_base}{sep}before={next_before}"
-                try:
-                    r = request_url(page_url)
-                    tried.append(f"{page_url}={r.status_code}")
-                    if r.status_code != 200 or not r.text:
-                        break
-                    page_rows, min_id = parse_page(r.text, page_url)
-                    rows.extend(page_rows)
-                    if not min_id or min_id >= next_before:
-                        break
-                    next_before = min_id
-                except Exception:
-                    break
-
-        rows = _dedupe(rows)
-        if rows:
-            return rows, 200, f"{working_base or channel_url};pages~{max_pages}"
-
-        # Last resort: render Telegram preview in Chromium. This is deliberately
-        # separate from the Kasra-site browser fallback.
-        try:
-            from playwright.sync_api import sync_playwright
-            with sync_playwright() as pw:
-                browser = pw.chromium.launch(headless=True)
-                context = browser.new_context(viewport={"width": 1440, "height": 1200}, locale="fa-IR")
-                page = context.new_page()
-                page.goto(channel_url, wait_until="domcontentloaded", timeout=timeout * 1000)
-                try:
-                    page.wait_for_load_state("networkidle", timeout=10000)
-                except Exception:
-                    pass
-                page.wait_for_timeout(1500)
-                body = page.content()
-                page_rows, min_id = parse_page(body, channel_url)
-                rows.extend(page_rows)
-                # Browser pagination through ?before= is useful when requests is blocked.
-                for _ in range(max_pages - 1):
-                    if not min_id or min_id <= 1:
-                        break
-                    u = f"{channel_url}{'&' if '?' in channel_url else '?'}before={min_id}"
-                    try:
-                        page.goto(u, wait_until="domcontentloaded", timeout=timeout * 1000)
-                        page.wait_for_timeout(800)
-                        body = page.content()
-                        page_rows, new_min = parse_page(body, u)
-                        rows.extend(page_rows)
-                        if not new_min or new_min >= min_id:
-                            break
-                        min_id = new_min
-                    except Exception:
-                        break
-                context.close()
-                browser.close()
-        except Exception as exc:
-            tried.append(f"playwright=ERR:{type(exc).__name__}")
-
-        rows = _dedupe(rows)
-        return rows, (200 if rows else 0), ";".join(tried)
-
-    def _proxy_fallback(self, locations):
-        """Fetch through public read proxies when CI cannot resolve Kasra DNS."""
-        import requests
-        rows = []
-        tried = set()
-        timeout = int(self.o.get("proxy_timeout", 45))
-        for initial in locations:
-            for proxy in _proxy_urls(initial):
-                if proxy in tried:
-                    continue
-                tried.add(proxy)
-                try:
-                    r = requests.get(proxy, timeout=timeout, headers={"User-Agent": "Mozilla/5.0"})
-                    if r.status_code != 200 or not r.text:
-                        continue
-                    parsed = _proxy_product_records(r.text, initial)
-                    if parsed:
-                        rows.extend(parsed)
-                except Exception:
-                    continue
-        return _dedupe(rows), len(tried)
 
     def records(self, watchlist):
         locations = self.locations(watchlist)
-
-        # Telegram-first architecture: Kasra's public channel is the reliable
-        # transport from CI when the Iranian website is DNS/geo inaccessible.
-        # The normal site/browser/proxy paths remain available as enrichment and
-        # fallback transports.
-        if bool(self.o.get("telegram_first", False)) and bool(self.o.get("telegram_fallback", True)):
-            tg_rows, tg_status, tg_url = self._telegram_fallback()
-            if tg_rows:
-                detected_units = {r.get("currency_detected") for r in tg_rows if r.get("currency_detected")}
-                self.raw_count = len(tg_rows)
-                self.catalog_titles = list(dict.fromkeys(r["title"] for r in tg_rows if r.get("title")))
-                self.note = (f"telegram-first; telegram_status={tg_status}; telegram_rows={len(tg_rows)}; "
-                             f"telegram_source={tg_url}; degraded_catalog=true")
-                return tg_rows
         max_pages = int(self.o.get("max_pages", 100))
         pagination_param = str(self.o.get("pagination_param", "page"))
         follow_next = bool(self.o.get("follow_next", True))
@@ -1047,6 +619,9 @@ class KasraParsSource(Source):
                 while current and current not in seen_pages and pages < max_pages:
                     seen_pages.add(current); pages += 1
                     body = self.read(current)
+                    log.info("[KasraPars] fetching website url=%s", current)
+                    log.info("[KasraPars] HTTP status=%s url=%s body_length=%d",
+                     getattr(self.http, "last_status", None), getattr(self.http, "last_url", current), len(body))
                     stripped = body.lstrip()
                     if stripped.startswith("{") or stripped.startswith("["):
                         try:
@@ -1056,6 +631,7 @@ class KasraParsSource(Source):
                         rows = _json_response_records(payload, current) if payload is not None else []
                     else:
                         rows = parse_kasrapars_html(body, current)
+                    log.info("[KasraPars] HTTP extracted product_cards=%d", len(rows))
                     all_records.extend(rows)
                     detected_units.update(r.get("currency_detected") for r in rows if r.get("currency_detected"))
 
@@ -1073,49 +649,37 @@ class KasraParsSource(Source):
 
         out = _dedupe(all_records)
         if not out and bool(self.o.get("browser_fallback", False)):
+            log.info("[KasraPars] browser fallback=true")
             browser_rows, api_hits, api_urls = self._browser_fallback(
                 locations, int(self.o.get("browser_max_scrolls", 12))
             )
+            log.info("[KasraPars] browser product_records=%d api_hits=%d api_candidates=%d",
+                     len(browser_rows), api_hits, len(api_urls))
             out = _dedupe(out + browser_rows)
             if out:
                 detected_units.update(r.get("currency_detected") for r in out if r.get("currency_detected"))
                 self.raw_count = len(out)
                 self.catalog_titles = list(dict.fromkeys(r["title"] for r in out if r.get("title")))
+                log.info("[KasraPars] final products=%d", len(out))
+                diag = getattr(self, "_browser_diag", [])
                 self.note = (f"http+browser-api; pages={pages}; api_hits={api_hits}; "
-                             f"api_urls={len(api_urls)}; detected_currency={','.join(sorted(detected_units)) or 'unknown'}")
+                             f"api_urls={len(api_urls)}; detected_currency={','.join(sorted(detected_units)) or 'unknown'}; "
+                             f"browser_diag={json.dumps(diag[:4], ensure_ascii=False)}")
                 return out
-            self.note = f"http+browser-empty; pages={pages}; api_hits={api_hits}; api_urls={len(api_urls)}"
-
-        if not out and bool(self.o.get("proxy_fallback", True)):
-            proxy_rows, proxy_attempts = self._proxy_fallback(locations)
-            out = _dedupe(out + proxy_rows)
-            if out:
-                detected_units.update(r.get("currency_detected") for r in out if r.get("currency_detected"))
-                self.raw_count = len(out)
-                self.catalog_titles = list(dict.fromkeys(r["title"] for r in out if r.get("title")))
-                self.note = (f"http+browser+proxy; pages={pages}; proxy_attempts={proxy_attempts}; "
-                             f"detected_currency={','.join(sorted(detected_units)) or 'unknown'}")
-                return out
-            self.note = f"http+browser+proxy-empty; pages={pages}; proxy_attempts={proxy_attempts}"
-
-        if not out and bool(self.o.get("telegram_fallback", True)):
-            tg_rows, tg_status, tg_url = self._telegram_fallback()
-            out = _dedupe(out + tg_rows)
-            if out:
-                detected_units.update(r.get("currency_detected") for r in out if r.get("currency_detected"))
-                self.raw_count = len(out)
-                self.catalog_titles = list(dict.fromkeys(r["title"] for r in out if r.get("title")))
-                self.note = (f"http+browser+proxy+telegram; pages={pages}; "
-                             f"telegram_status={tg_status}; telegram_rows={len(tg_rows)}; "
-                             f"degraded_catalog=true")
-                return out
-            self.note = (f"http+browser+proxy+telegram-empty; pages={pages}; "
-                         f"telegram_status={tg_status}; telegram_url={tg_url}")
+            diag = getattr(self, "_browser_diag", [])
+            self.note = (
+                f"http+browser-empty; pages={pages}; api_hits={api_hits}; api_urls={len(api_urls)}; "
+                f"locations={len(locations)}; browser_diag={json.dumps(diag[:4], ensure_ascii=False)}"
+            )
 
         if not out:
-            raise RuntimeError("KasraPars returned zero products (HTTP, browser/API, proxy and Telegram fallbacks found none)")
+            raise RuntimeError(
+                "KasraPars returned zero products: HTTP parser found no valid product cards; "
+                "browser/API fallback found no valid product records"
+            )
         self.raw_count = len(out)
         self.catalog_titles = list(dict.fromkeys(r["title"] for r in out if r.get("title")))
+        log.info("[KasraPars] final products=%d", len(out))
         self.note = f"http+html/json; pages={pages}; detected_currency={','.join(sorted(detected_units)) or 'unknown'}"
         return out
 

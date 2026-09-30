@@ -25,6 +25,9 @@ class HttpClient:
         self.headers = {"User-Agent": os.environ.get("PRICECOMPARE_UA", USER_AGENT), **(headers or {})}
         self.auth = self._auth(auth)
         self._last = 0.0
+        self.last_status = None
+        self.last_url = None
+        self.last_content_length = 0
 
     @staticmethod
     def _auth(cfg):
@@ -64,6 +67,9 @@ class HttpClient:
             try:
                 self._last = time.monotonic()
                 r = self.session.get(url, headers=headers, auth=auth, timeout=self.timeout)
+                self.last_status = r.status_code
+                self.last_url = r.url
+                self.last_content_length = len(r.content or b"")
                 if r.status_code == 429 or r.status_code >= 500:
                     delay = self.backoff * 2 ** attempt
                     try:
