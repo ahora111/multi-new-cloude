@@ -861,45 +861,141 @@ class KasraParsSource(Source):
 
 
     def _telegram_fallback(self):
-        """Use the public Kasra Telegram preview through several CI-friendly transports."""
+        """Read Kasra's public Telegram channel as the primary catalog transport.
+
+        GitHub-hosted runners can be unable to resolve/reach plus.kasrapars.ir while
+        Telegram's public preview remains reachable.  We therefore treat Telegram
+        as a first-class source transport, not merely an emergency fallback.
+        """
         import requests
-        from urllib.parse import quote
+        from urllib.parse import quote, urlsplit, parse_qs
 
         channel_url = str(self.o.get("telegram_fallback_url", "https://t.me/s/kasrapars")).strip()
         timeout = int(self.o.get("telegram_fallback_timeout", 30))
-        encoded = quote(channel_url, safe="")
-        candidates = [
+        max_pages = max(1, int(self.o.get("telegram_max_pages", 8)))
+        candidates = []
+        base_candidates = [
             channel_url,
             "https://www.t.me/s/kasrapars",
             "https://telegram.me/s/kasrapars",
-            "https://r.jina.ai/http://t.me/s/kasrapars",
-            f"https://r.jina.ai/{channel_url}",
-            f"https://api.allorigins.win/raw?url={encoded}",
         ]
+        # Direct Telegram first. Read proxies are transport fallbacks only.
+        for u in base_candidates:
+            if u not in candidates:
+                candidates.append(u)
+        for u in list(base_candidates[:1]):
+            candidates.extend([
+                f"https://r.jina.ai/http://{urlsplit(u).netloc}{urlsplit(u).path}",
+                f"https://r.jina.ai/{u}",
+                f"https://api.allorigins.win/raw?url={quote(u, safe='')}",
+            ])
+
         tried = []
-        seen = set()
-        for url in candidates:
-            if not url or url in seen:
-                continue
-            seen.add(url); tried.append(url)
+        rows = []
+        seen_ids = set()
+        next_before = None
+
+        def parse_page(body, page_url):
+            parsed = _telegram_product_records(body, self.o.get("base_url", "https://plus.kasrapars.ir/"))
+            # The HTML preview exposes data-post="kasrapars/<message_id>".  The
+            # smallest ID lets us walk backwards through older price-list posts.
+            ids = []
+            for m in re.finditer(r'data-post=["\']kasrapars/(\d+)', body or "", re.I):
+                try:
+                    ids.append(int(m.group(1)))
+                except Exception:
+                    pass
+            return parsed, (min(ids) if ids else None)
+
+        def request_url(u):
+            r = requests.get(u, timeout=timeout, headers={
+                "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/154 Safari/537.36",
+                "Accept": "text/html,application/xhtml+xml,text/plain,text/markdown;q=0.9,*/*;q=0.8",
+            }, allow_redirects=True)
+            return r
+
+        # Try direct/proxy HTTP transports and paginate backwards when the preview
+        # exposes message IDs. A single promotional page is not enough for a catalog.
+        working_base = None
+        for transport in candidates:
             try:
-                r = requests.get(
-                    url,
-                    timeout=timeout,
-                    headers={
-                        "User-Agent": "Mozilla/5.0 (compatible; PriceCompare/1.0)",
-                        "Accept": "text/html,text/plain,text/markdown;q=0.9,*/*;q=0.8",
-                    },
-                    allow_redirects=True,
-                )
+                r = request_url(transport)
+                tried.append(f"{transport}={r.status_code}")
                 if r.status_code != 200 or not r.text:
                     continue
-                rows = _telegram_product_records(r.text, self.o.get("base_url", "https://plus.kasrapars.ir/"))
-                if rows:
-                    return rows, r.status_code, url
-            except Exception:
-                continue
-        return [], 0, ",".join(tried)
+                page_rows, min_id = parse_page(r.text, transport)
+                if page_rows:
+                    rows.extend(page_rows)
+                    working_base = transport
+                    next_before = min_id
+                    break
+            except Exception as exc:
+                tried.append(f"{transport}=ERR:{type(exc).__name__}")
+
+        # Continue pagination on the same working transport where possible.
+        if working_base and next_before:
+            for _ in range(max_pages - 1):
+                if not next_before or next_before <= 1:
+                    break
+                sep = "&" if "?" in working_base else "?"
+                page_url = f"{working_base}{sep}before={next_before}"
+                try:
+                    r = request_url(page_url)
+                    tried.append(f"{page_url}={r.status_code}")
+                    if r.status_code != 200 or not r.text:
+                        break
+                    page_rows, min_id = parse_page(r.text, page_url)
+                    rows.extend(page_rows)
+                    if not min_id or min_id >= next_before:
+                        break
+                    next_before = min_id
+                except Exception:
+                    break
+
+        rows = _dedupe(rows)
+        if rows:
+            return rows, 200, f"{working_base or channel_url};pages~{max_pages}"
+
+        # Last resort: render Telegram preview in Chromium. This is deliberately
+        # separate from the Kasra-site browser fallback.
+        try:
+            from playwright.sync_api import sync_playwright
+            with sync_playwright() as pw:
+                browser = pw.chromium.launch(headless=True)
+                context = browser.new_context(viewport={"width": 1440, "height": 1200}, locale="fa-IR")
+                page = context.new_page()
+                page.goto(channel_url, wait_until="domcontentloaded", timeout=timeout * 1000)
+                try:
+                    page.wait_for_load_state("networkidle", timeout=10000)
+                except Exception:
+                    pass
+                page.wait_for_timeout(1500)
+                body = page.content()
+                page_rows, min_id = parse_page(body, channel_url)
+                rows.extend(page_rows)
+                # Browser pagination through ?before= is useful when requests is blocked.
+                for _ in range(max_pages - 1):
+                    if not min_id or min_id <= 1:
+                        break
+                    u = f"{channel_url}{'&' if '?' in channel_url else '?'}before={min_id}"
+                    try:
+                        page.goto(u, wait_until="domcontentloaded", timeout=timeout * 1000)
+                        page.wait_for_timeout(800)
+                        body = page.content()
+                        page_rows, new_min = parse_page(body, u)
+                        rows.extend(page_rows)
+                        if not new_min or new_min >= min_id:
+                            break
+                        min_id = new_min
+                    except Exception:
+                        break
+                context.close()
+                browser.close()
+        except Exception as exc:
+            tried.append(f"playwright=ERR:{type(exc).__name__}")
+
+        rows = _dedupe(rows)
+        return rows, (200 if rows else 0), ";".join(tried)
 
     def _proxy_fallback(self, locations):
         """Fetch through public read proxies when CI cannot resolve Kasra DNS."""
@@ -925,6 +1021,20 @@ class KasraParsSource(Source):
 
     def records(self, watchlist):
         locations = self.locations(watchlist)
+
+        # Telegram-first architecture: Kasra's public channel is the reliable
+        # transport from CI when the Iranian website is DNS/geo inaccessible.
+        # The normal site/browser/proxy paths remain available as enrichment and
+        # fallback transports.
+        if bool(self.o.get("telegram_first", False)) and bool(self.o.get("telegram_fallback", True)):
+            tg_rows, tg_status, tg_url = self._telegram_fallback()
+            if tg_rows:
+                detected_units = {r.get("currency_detected") for r in tg_rows if r.get("currency_detected")}
+                self.raw_count = len(tg_rows)
+                self.catalog_titles = list(dict.fromkeys(r["title"] for r in tg_rows if r.get("title")))
+                self.note = (f"telegram-first; telegram_status={tg_status}; telegram_rows={len(tg_rows)}; "
+                             f"telegram_source={tg_url}; degraded_catalog=true")
+                return tg_rows
         max_pages = int(self.o.get("max_pages", 100))
         pagination_param = str(self.o.get("pagination_param", "page"))
         follow_next = bool(self.o.get("follow_next", True))

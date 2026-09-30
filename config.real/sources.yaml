@@ -73,6 +73,9 @@ sources:
   proxy_timeout: 45
   page_timeout_ms: 90000
   browser_max_scrolls: 12
+  # Telegram-first: public @kasrapars preview is the primary CI transport.
+  telegram_first: true
   telegram_fallback: true
   telegram_fallback_url: https://t.me/s/kasrapars
   telegram_fallback_timeout: 30
+  telegram_max_pages: 8

@@ -234,3 +234,31 @@ def test_kasrapars_telegram_fallback_uses_proxy_when_direct_transport_fails(monk
     assert status == 200
     assert used.startswith("https://r.jina.ai/")
     assert calls[0] == "https://t.me/s/kasrapars"
+
+
+def test_kasrapars_telegram_first_skips_site_when_telegram_has_rows(monkeypatch):
+    from pricecompare.sources.kasrapars import KasraParsSource
+
+    src = object.__new__(KasraParsSource)
+    src.o = {
+        "telegram_first": True,
+        "telegram_fallback": True,
+        "base_url": "https://plus.kasrapars.ir/",
+    }
+    src.locations = lambda watchlist: ["https://plus.kasrapars.ir/search/category-mobilephone"]
+    src._telegram_fallback = lambda: ([{
+        "id": "tg_a56",
+        "title": "Samsung Galaxy A56 256/8GB",
+        "price": 83990000,
+        "url": "",
+        "stock": "in_stock",
+        "currency_detected": "toman",
+        "extra": {"telegram_fallback": True},
+    }], 200, "https://t.me/s/kasrapars")
+    def fail_site(*args, **kwargs):
+        raise AssertionError("site transport must not run when telegram-first succeeds")
+    src.read = fail_site
+    rows = src.records([])
+    assert len(rows) == 1
+    assert rows[0]["id"] == "tg_a56"
+    assert "telegram-first" in src.note
