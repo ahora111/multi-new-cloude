@@ -689,6 +689,10 @@ def _telegram_text_records(chunks, base_url):
                     continue
                 low = candidate.lower()
                 if any(x in low for x in _TELEGRAM_NON_MOBILE_HINTS):
+                    # An accessory between the phone title and this price is a hard
+                    # boundary. Do not let the price of Buds/AirPods/etc. attach to
+                    # the previous phone title.
+                    candidates = []
                     break
                 if any(x in low for x in ("کسری پلاس", "بهترین قیمت", "ارسال سریع", "امکان خرید", "۳۰ دقیقه", "30 دقیقه")):
                     continue
