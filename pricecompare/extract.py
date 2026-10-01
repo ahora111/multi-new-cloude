@@ -12,6 +12,12 @@ _DIGITS = str.maketrans("۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩", "01234567890
 _CHARS = str.maketrans({"ي": "ی", "ى": "ی", "ك": "ک", "ۀ": "ه", "ة": "ه", "ؤ": "و", "أ": "ا", "إ": "ا"})
 _INVIS = dict.fromkeys(map(ord, "\u200c\u200d\u200e\u200f\u202a\u202b\u202c\u00a0"), " ")
 _FA_RANGE = "\u0600-\u06FF"
+# Phone-RAM sizes (GB). A GB'd number in this range is RAM, not storage.
+RAM_SIZES = {1, 2, 3, 4, 6, 8, 12, 16, 18, 24, 32}
+# Storage-class numbers that shops also write WITHOUT a unit, e.g.
+# KasraPars "iPhone 17 256 8GB CH/A Non Active" (= 256GB storage, 8GB RAM).
+# None of these collide with phone model numbers (iPhone 8/12/16 stay intact).
+_BARE_STORAGE_RX = r"(?<!\w)(1024|512|256|128|64|32)(?!\w)"
 
 
 @dataclass
@@ -188,11 +194,28 @@ class Extractor:
             # Common cross-source shorthand: "8GB 256GB" means RAM 8GB +
             # storage 256GB. Only infer RAM from an unambiguous phone-RAM
             # range; never turn a second large storage capacity into RAM.
-            ram_candidates = [v for v, _ in values if v <= 32 and v in {1,2,3,4,6,8,12,16,18,24,32}]
+            ram_candidates = [v for v, _ in values if v <= 32 and v in RAM_SIZES]
             if len(values) >= 2 and len(ram_candidates) == 1:
                 a.ram_gb = ram_candidates[0]
             for c in reversed(caps):
                 t = t[:c.start()] + " " + t[c.end():]
+            # KasraPars-style shorthand "<storage> <ram>GB" (e.g. "iPhone 17
+            # 256 8GB", "iPhone 17 Pro Max 256 12GB"): the ONLY GB value is
+            # RAM-sized while the real storage stands bare (no unit). Swap
+            # the two instead of inventing an 8GB phone whose model name
+            # contains "256".
+            if len(values) == 1 and a.storage_gb in RAM_SIZES:
+                m = re.search(_BARE_STORAGE_RX, t)
+                if m:
+                    a.storage_gb, a.ram_gb = int(m.group(1)), a.storage_gb
+                    t = t[:m.start()] + " " + t[m.end():]
+        elif re.search(r"iphone|galaxy|redmi|poco|pixel|xperia|motorola|xiaomi|honor|tecno|infinix|nokia|vivo|oppo|realme|oneplus|asus|lenovo", t):
+            # A bare storage-class number with no GB/TB anywhere else
+            # (e.g. "iPhone 17 256") is the capacity, not part of the model.
+            m = re.search(_BARE_STORAGE_RX, t)
+            if m:
+                a.storage_gb = int(m.group(1))
+                t = t[:m.start()] + " " + t[m.end():]
 
         canon, syn = self._find(self._colors, t.strip())
         if canon:
@@ -216,7 +239,7 @@ class Extractor:
 
         core, tiers = [], []
         for tok in t.split():
-            tok = tok.strip("-./")
+            tok = tok.strip("-./+")   # "Single + Esim" must not leave a '+' token behind
             if not tok or tok in self.generic or tok in self.drop_brand:
                 continue
             if tok in self.tiers:

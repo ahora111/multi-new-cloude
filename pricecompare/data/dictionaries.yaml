@@ -37,10 +37,12 @@ token_map:
   حافظه: memory
 # phrase_map: multi-word / substring replacements (longest first)
 phrase_map:
+  نات اکتیو: nonactive
   نان اکتیو: nonactive
   غیر اکتیو: nonactive
   غیرفعال: nonactive
   اکتیو: active
+  e-sim: esim
   گیگابایت: gb
   ترابایت: tb
   گیگ: gb
@@ -180,10 +182,10 @@ colors:
   yellow: [yellow, زرد]
   brown: [brown, قهوه ای, قهوه‌ای]
 regions:
-  cha: [cha]
-  singapore: [zaa]
+  cha: [cha, ch]
+  singapore: [zaa, za]
   usa_apple: [lla]
-  uae_apple: [aea]
+  uae_apple: [aea, ae]
   japan: [ja]
   uk: [ba]
   india_apple: [hna]
@@ -195,4 +197,4 @@ regions:
   eu: [eu, europe, اروپا]
   usa: [usa, آمریکا]
   china: [china, چین]
-generic_words: [مونتاژ, ایران, ساخت, phone, mobile, smartphone, model, capacity, ram, storage, memory, گوشی, موبایل, مدل, تومان, ریال, toman, rial, dual, sim, nfc, دو, سیم, کارت, دوسیم, گارانتی, رجیستری, رجیستر, پلمپ, part, number, and, و, شده, "5g", "4g"]
+generic_words: [مونتاژ, ایران, ساخت, phone, mobile, smartphone, model, capacity, ram, storage, memory, گوشی, موبایل, مدل, تومان, ریال, toman, rial, dual, single, esim, sim, nfc, دو, سیم, کارت, دوسیم, گارانتی, رجیستری, رجیستر, پلمپ, part, number, and, و, شده, "5g", "4g"]

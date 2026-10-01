@@ -60,7 +60,13 @@ def test_all_output_files_written_and_csv_is_clean(tmp_path):
     for f in ("output.json", "report.csv", "report.md", "run_summary.json", "matching_report.json"):
         assert (out / f).exists(), f
     rows = (out / "report.csv").read_text(encoding="utf-8").splitlines()
-    assert rows[0].lstrip("\ufeff").startswith("product_id,model,variant,winner_source") and len(rows) == 11
+    # 11 rows before the bare-storage fix: the farnaa "Redmi Note 14 4G ظرفیت 256 رم 8
+    # گیگابایت" offer parsed as storage=None + core "256" and was orphaned outside the
+    # watchlist product. It now joins redmi-note-14-256-8 as a colourless (out of stock)
+    # variant -> one extra no-winner row.
+    assert rows[0].lstrip("\ufeff").startswith("product_id,model,variant,winner_source") and len(rows) == 12
+    extra = [r for r in rows if r.startswith("redmi-note-14-256-8,Redmi Note 14 256GB RAM 8GB,بدون رنگ/مشخصه")]
+    assert len(extra) == 1 and ",1,0," in extra[0]      # farnaa offer present but out of stock -> no winner
     assert "🏆" in (out / "report.md").read_text(encoding="utf-8")
 
 
