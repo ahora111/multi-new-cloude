@@ -91,3 +91,28 @@ Run the KasraPars parser tests:
 ```bash
 pytest -q tests/test_kasrapars.py
 ```
+
+
+## Digikala B2B source
+
+The project includes a `digikala_b2b` source for the wholesale portal at `https://b2b.digikala.com/` (category 3 = mobile phones, sorted `price-desc` like the site UI).
+
+- **b2b.digikala.com is a Next.js SPA: the HTML shell contains no product data.** The source reads the portal's own public JSON API (no login needed): listing `GET /api/v1/products?category_id=3&page=1&sort=price-desc` with Laravel-style pagination (`meta`/`links.next`, ~12 products/page, 60+ pages) and product details `GET /api/v1/products/pdp/{id}`.
+- API prices are **RIAL** (PDP `formatted_price` is "﷼5,199,990,000") — `config.real/sources.yaml` declares `currency_unit: rial`; the rial→toman conversion happens in the pipeline only.
+- **Sold-out products are listed with `price == 0` and an empty `colors` array** (their PDP has `in_stock: false` and no variants). By default these rows are dropped (`include_out_of_stock: false`), matching the other sources' site-side availability filters; set the option to `true` to keep them as non-competing "نا موجود" rows.
+- `details: all` (default) fetches the PDP payload for every in-stock listing row and emits **one offer per variant** with the exact per-colour price, Persian colour name, warranty and stock (`remaining_stock` 0 = sold out, null = no explicit limit). `details: candidates` refines only watchlist candidates (like Eways); `details: none` keeps the raw listing rows (colour unknown for multi-colour products).
+- Product links use the SPA route `https://b2b.digikala.com/products/product/{id}`; images come from `dkstatics-public.digikala.com`.
+- Persian colour names (آبی تیره, سرمه ای, …) are canonicalised by the central dictionary — `آبی تیره/سرمه ای/navy/dark blue` all map to `deep_blue`, the colour name KasraPars uses, so the same phone from different shops competes in ONE variant row.
+- The B2B catalog holds ~740 listed phones of which only ~70–90 are in stock at any time; a full crawl is ~62 listing pages + ~80 PDP calls (a couple of minutes at `rate_limit_per_sec: 2`).
+
+Run only Digikala B2B:
+
+```bash
+python -m pricecompare --config-dir config.real run --dry-run --only-source digikala_b2b
+```
+
+Run the Digikala B2B parser tests:
+
+```bash
+pytest -q tests/test_digikala_b2b.py
+```

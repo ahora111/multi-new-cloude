@@ -72,3 +72,24 @@ sources:
   browser_fallback: true
   page_timeout_ms: 90000
   browser_max_scrolls: 12
+- name: digikala_b2b
+  # b2b.digikala.com is a Next.js SPA: the HTML has NO products. The catalog
+  # comes from the portal's own public JSON API (no login needed).
+  # ⚠️ API prices are RIAL (PDP formatted_price "﷼5,199,990,000") — keep currency_unit: rial.
+  # ⚠️ Sold-out products are listed with price=0 and no colours; they are dropped unless
+  #    include_out_of_stock: true (other sources filter OOS site-side too).
+  type: digikala_b2b
+  currency_unit: rial
+  priority: 60
+  min_expected_products: 20
+  degraded_excluded: true
+  base_url: https://b2b.digikala.com/
+  rate_limit_per_sec: 2
+  timeout: 30
+  retries: 3
+  url: https://b2b.digikala.com/api/v1/products?category_id=3&page=1&sort=price-desc
+  max_pages: 100
+  follow_next: true
+  details: all              # all = exact per-colour price/stock via PDP API for every in-stock product
+  max_details: 800
+  include_out_of_stock: false

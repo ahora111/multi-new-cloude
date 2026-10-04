@@ -86,3 +86,13 @@ sources:
   page_query_fallback: false
   pagination_param: page
   path: fixtures/kasrapars_mobile.html
+# Digikala B2B (production only — see config.real/sources.yaml). Offline example:
+# - name: digikala_b2b
+#   type: digikala_b2b
+#   currency_unit: rial
+#   priority: 60
+#   min_expected_products: 3
+#   path: fixtures/digikala_b2b_listing.json
+#   base_url: https://b2b.digikala.com/
+#   details: none
+#   include_out_of_stock: true

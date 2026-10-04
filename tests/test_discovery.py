@@ -23,7 +23,9 @@ def _labels(items):
 
 def test_light_blue_and_blue_are_one_colour():
     assert {ex.color_of(x, explicit=True) for x in ("آبی", "آبی روشن", "ابی", "Light Blue", "Mist Blue")} == {"blue"}
-    assert ex.color_of("آبی تیره", explicit=True) == "dark blue"                  # dark blue stays a different colour
+    # digikala_b2b writes آبی تیره/سرمه ای for the colour kasrapars calls "deep blue":
+    # one physical colour must be ONE variant row, so they all map to deep_blue
+    assert {ex.color_of(x, explicit=True) for x in ("آبی تیره", "سرمه ای", "navy", "dark blue")} == {"deep_blue"}
 
 
 def test_clusters_join_across_shops_and_never_merge_different_models():
