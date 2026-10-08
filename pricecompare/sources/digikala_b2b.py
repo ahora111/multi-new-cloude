@@ -37,10 +37,13 @@ sources.yaml:
 from __future__ import annotations
 
 import json
+import logging
 from urllib.parse import urljoin
 
 from ..extract import Extractor
 from .base import Source
+
+log = logging.getLogger(__name__)
 
 LISTING_PAGE_SIZE = 12
 
@@ -236,6 +239,8 @@ class DigikalaB2BSource(Source):
         listing, seen, pages = [], set(), 0
         for start in locations:
             current = start
+            if current.startswith(("http://", "https://")):
+                log.info("digikala_b2b: fetching listing pages (max %d) ...", max_pages)
             while current and current not in seen and pages < max_pages:
                 seen.add(current)
                 pages += 1
@@ -246,8 +251,11 @@ class DigikalaB2BSource(Source):
                     raise RuntimeError(f"Digikala B2B listing returned invalid JSON: {exc}") from exc
                 rows, nxt = parse_listing_payload(payload, base_url)
                 listing.extend(rows)
+                if pages == 1 or pages % 15 == 0:
+                    log.info("digikala_b2b: listing page %d done (%d rows so far)", pages, len(listing))
                 # only follow next links between real pages, never from a local fixture file
                 current = nxt if (follow_next and current.startswith(("http://", "https://"))) else ""
+        log.info("digikala_b2b: listing finished: %d pages, %d rows", pages, len(listing))
         if not listing:
             raise RuntimeError("Digikala B2B returned zero products")
 
@@ -270,6 +278,10 @@ class DigikalaB2BSource(Source):
             keep = dict(list(keep.items())[:max_details])
 
         out, pdp_hits, pdp_failed = [], 0, 0
+        pdp_total = len(keep)
+        if pdp_total:
+            log.info("digikala_b2b: refining %d in-stock products via PDP API ...", pdp_total)
+        pdp_done = 0
         for row in listing:
             pid = row["extra"]["product_id"]
             refined = None
@@ -280,6 +292,9 @@ class DigikalaB2BSource(Source):
                     pdp_hits += 1
                 except Exception:                     # degrade to the listing row
                     pdp_failed += 1
+                pdp_done += 1
+                if pdp_done % 25 == 0 or pdp_done == pdp_total:
+                    log.info("digikala_b2b: pdp %d/%d done (failed=%d)", pdp_done, pdp_total, pdp_failed)
             rows = refined or [row]
             for rec in rows:
                 if include_oos or rec["stock"] != "out_of_stock":

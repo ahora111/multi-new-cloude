@@ -104,11 +104,13 @@ def _run_locked(settings, ex, watchlist, source_cfgs, overrides, outdir, dry_run
     from .config import Discovery
     discovery = discovery or Discovery()
     offers, status, degraded, catalogs = [], [], set(), {}
+    sources_t0 = time.monotonic()
     for cfg in source_cfgs:
         t0 = time.monotonic()
         st = {"name": cfg.name, "status": "ok", "count": 0, "seconds": 0.0, "error": None,
               "currency_unit": cfg.currency_unit}
         try:
+            log.info("source %s: fetching ...", cfg.name)
             src = build_source(cfg, settings, base_dir, http)
             got = src.fetch([] if discovery.enabled else watchlist)   # discovery reads the WHOLE catalog
             catalog = src.raw_count if src.raw_count is not None else len(got)
@@ -127,6 +129,9 @@ def _run_locked(settings, ex, watchlist, source_cfgs, overrides, outdir, dry_run
             log.error("source %s failed: %s", cfg.name, st["error"])
         st["seconds"] = round(time.monotonic() - t0, 2)
         status.append(st)
+        log.info("source %s: %s in %.1fs (%d offers%s)", cfg.name, st["status"], st["seconds"], st["count"],
+                 f", catalog={st['catalog_count']}" if "catalog_count" in st else "")
+    log.info("all sources finished in %.1fs: %d offers collected", time.monotonic() - sources_t0, len(offers))
 
     # Enforce the global Offer identity contract at the pipeline boundary. A source may
     # discover the same product more than once (multiple pages, fallback URLs, or a
@@ -148,6 +153,7 @@ def _run_locked(settings, ex, watchlist, source_cfgs, overrides, outdir, dry_run
 
     for o in offers:
         enrich(o, ex)
+    log.info("matching %d offers against %d watchlist items ...", len(offers), len(watchlist))
     watch_attrs = {w.id: ex.parse(w.model) for w in watchlist}
     matched, match_report, review_queue = assign(offers, watchlist, watch_attrs, settings, overrides)
     for m in overrides["color_merge"]:                       # e.g. shop A says "blue", shop B says "light blue"
@@ -247,6 +253,7 @@ def _run_locked(settings, ex, watchlist, source_cfgs, overrides, outdir, dry_run
                         msgs = report.build_telegram_messages(
                             doc, settings.telegram_group_by, changed_map if settings.telegram_mode == "changes_only" else None,
                             removed, settings.telegram_show_links)
+                        log.info("telegram: sending %d message(s) ...", len(msgs))
                         parts = telegram.send(tok, chat, msgs, settings.telegram_max_message_len,
                                               dry_run=settings.telegram_dry_run, max_messages=settings.telegram_max_messages)
                         if settings.telegram_dry_run:

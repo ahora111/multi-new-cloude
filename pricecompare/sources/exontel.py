@@ -9,12 +9,15 @@ in the central extractor/matcher/discovery pipeline.
 from __future__ import annotations
 
 import json
+import logging
 import re
 from urllib.parse import urljoin
 
 from bs4 import BeautifulSoup
 
 from .base import Source
+
+log = logging.getLogger(__name__)
 
 
 _FA_DIGITS = str.maketrans("۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩", "01234567890123456789")
@@ -238,6 +241,25 @@ def parse_product_html(html: str, url: str = "") -> list[dict]:
     }]
 
 
+_VARIANT_BLOCK_FN = "() => /\u0627\u0646\u062a\u062e\u0627\u0628 \u0648 \u0633\u0641\u0627\u0631\u0634|\u0627\u0646\u062a\u062e\u0627\u0628 \u0631\u0646\u06af|Choose and order/.test(document.body.innerText)"
+
+
+def _settle_product_page(page, timeout_ms: int) -> None:
+    """Wait exactly as long as the parser actually needs.
+
+    The colour/price order block is rendered by JavaScript.  Waiting for the
+    block itself (polling ``document.body.innerText``) returns as soon as it
+    exists, instead of the previous blind ``networkidle`` wait that almost
+    always timed out after 10s on every single product page and made the whole
+    source take ~9 minutes for ~50 products.  When a page has no order block
+    at all the cap keeps the old worst-case bound.
+    """
+    try:
+        page.wait_for_function(_VARIANT_BLOCK_FN, timeout=min(timeout_ms, 8000))
+    except Exception:
+        pass  # page without an order block, or navigation hiccup: parse whatever is there
+
+
 def _category_links(html: str, base_url: str) -> list[str]:
     soup = BeautifulSoup(html, "lxml")
     out = []
@@ -299,7 +321,16 @@ class ExontelSource(Source):
         with sync_playwright() as pw:
             browser = pw.chromium.launch(headless=True)
             context = browser.new_context()
+            # Pages are consumed as text only; skipping images/fonts/media
+            # shortens every goto noticeably without changing parsed data.
+            try:
+                context.route("**/*", lambda route: (
+                    route.abort() if route.request.resource_type in {"image", "font", "media"}
+                    else route.continue_()))
+            except Exception:
+                pass
             page = context.new_page()
+            log.info("exontel: opening category %s (Playwright)", url)
             for cat_url in pages:
                 page.goto(cat_url, wait_until="domcontentloaded", timeout=timeout_ms)
                 try:
@@ -335,15 +366,14 @@ class ExontelSource(Source):
                     if stable >= stable_scrolls:
                         break
 
+            log.info("exontel: category discovery finished: %d product URLs (pages: %d)", len(links), len(pages))
             links = links[:max_products]
+            log.info("exontel: fetching %d product pages", len(links))
             records, seen = [], set()
-            for link in links:
+            for idx, link in enumerate(links, 1):
                 try:
                     page.goto(link, wait_until="domcontentloaded", timeout=timeout_ms)
-                    try:
-                        page.wait_for_load_state("networkidle", timeout=min(timeout_ms, 10000))
-                    except Exception:
-                        pass
+                    _settle_product_page(page, timeout_ms)
                     for r in parse_product_html(page.content(), page.url):
                         key = (str(r.get("id")), r.get("color", ""))
                         if key in seen:
@@ -352,6 +382,8 @@ class ExontelSource(Source):
                 except Exception:
                     # One changed/broken product page must not kill the whole source.
                     continue
+                if idx % 10 == 0 or idx == len(links):
+                    log.info("exontel: %d/%d product pages done (%d offers so far)", idx, len(links), len(records))
             browser.close()
 
         if not records:
