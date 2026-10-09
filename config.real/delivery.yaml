@@ -1,0 +1,42 @@
+# ── تنظیمات سفارش و تحویل هر فروشنده — پروفایل واقعی (V2) ────────────────────
+# همه‌ی ساعت‌ها به وقت Asia/Tehran. مقادیر زیر «نقطه‌ی شروع» هستند و تخمینی‌اند؛
+# پس از استعلام از هر فروشنده اصلاح کنید و برای زمان تاییدشده verified: true بگذارید.
+# منبعی که اینجا نباشد «زمان تحویل نامشخص» می‌گیرد و بقیه تحت تاثیر قرار نمی‌گیرند.
+# راهنمای کامل: docs/DELIVERY_CONFIG_FA.md
+
+timezone: Asia/Tehran
+sources:
+  eways:
+    order_windows:
+    - {start: "09:00", end: "12:00", ship_at: "13:30", delivery_at: "18:00", delivery_day_offset: 0,
+       note: سفارش تا ۱۲ → ارسال ۱۳:۳۰ → قزوین ~۱۸ همان روز}
+    active_weekdays: [saturday, sunday, monday, tuesday, wednesday, thursday]
+    verified: false
+    shipping_note: نیازمند استعلام
+  hamrahtel:
+    order_windows:
+    - {start: "00:00", end: "23:00", ship_at: "23:30", delivery_at: "10:00", delivery_day_offset: 1,
+       note: سفارش تا ۲۳ → ارسال شب → قزوین ~۱۰ صبح روز بعد}
+    active_weekdays: [saturday, sunday, monday, tuesday, wednesday, thursday]
+    verified: false
+    shipping_note: نیازمند استعلام
+  farnaa:
+    order_windows:
+    - {start: "09:00", end: "14:00", ship_at: "16:00", delivery_at: "20:00", delivery_day_offset: 0}
+    verified: false
+    shipping_note: نیازمند استعلام
+  exontel:
+    order_windows:
+    - {start: "09:00", end: "15:00", ship_at: "17:00", delivery_at: "21:00", delivery_day_offset: 0}
+    verified: false
+    shipping_note: نیازمند استعلام
+  kasrapars:
+    order_windows:
+    - {start: "09:00", end: "13:00", ship_at: "15:00", delivery_at: "19:00", delivery_day_offset: 0}
+    verified: false
+    shipping_note: نیازمند استعلام
+  digikala_b2b:
+    order_windows:
+    - {start: "09:00", end: "17:00", ship_at: "19:00", delivery_at: "12:00", delivery_day_offset: 1}
+    verified: false
+    shipping_note: نیازمند استعلام
