@@ -1,0 +1,95 @@
+sources:
+- name: eways
+  type: eways
+  currency_unit: rial
+  priority: 10
+  min_expected_products: 20
+  username_env: EWAYS_USERNAME
+  password_env: EWAYS_PASSWORD
+  selected_ids: 16777:all-allz
+  max_pages: 50
+  details: none
+- name: hamrahtel
+  type: hamrahtel
+  currency_unit: toman
+  priority: 20
+  min_expected_products: 20
+  categories:
+  - mobile
+  strategy: auto
+  page_timeout_ms: 90000
+  scrape_attempts: 3
+  max_scrolls: 20
+  legacy_skip_items: 25
+- name: farnaa
+  type: farnaa
+  currency_unit: toman
+  priority: 30
+  min_expected_products: 50
+  degraded_excluded: true
+  url: https://farnaa.com/category/mobile?availablestock=true
+  base_url: https://farnaa.com/
+  rate_limit_per_sec: 0.5
+  timeout: 30
+  retries: 3
+  in_stock_values:
+  - in stock
+  out_of_stock_values:
+  - out of stock
+- name: exontel
+  type: exontel
+  currency_unit: toman
+  priority: 40
+  min_expected_products: 20
+  degraded_excluded: true
+  url: https://exontel.com/category/phones?available=true
+  base_url: https://exontel.com/
+  rate_limit_per_sec: 0.5
+  timeout: 30
+  retries: 3
+  page_timeout_ms: 90000
+  max_scrolls: 30
+  stable_scrolls: 3
+  max_products: 1000
+- name: kasrapars
+  type: kasrapars
+  # plus.kasrapars.ir is a Nuxt SPA: its HTML has NO product cards anymore.
+  # The catalog comes from the site's own public web API (this exact endpoint).
+  # ⚠️ API prices are RIAL (the site divides by 10 for display) — keep currency_unit: rial.
+  currency_unit: rial
+  priority: 50
+  min_expected_products: 20
+  degraded_excluded: true
+  base_url: https://plus.kasrapars.ir/
+  rate_limit_per_sec: 0.5
+  timeout: 30
+  retries: 3
+  max_pages: 30
+  follow_next: true
+  page_query_fallback: false
+  pagination_param: page
+  url: https://api.kasrapars.ir/api/web/v10/product/index-brand?expand=varieties.minOrderCount%2CletMeKnowOnAvailability%2Cvarieties%2CcartFeatures%2CcoworkerShortName%2Csrc%2CisInWishList%2CpromotionCoworker%2Cdescription%2CbriefFeatures&status_available=1&sort=-price&category_slug=mobilephone&page=1&responseFields%5B0%5D=items&responseFields%5B1%5D=filters
+  browser_fallback: true
+  page_timeout_ms: 90000
+  browser_max_scrolls: 12
+- name: digikala_b2b
+  # b2b.digikala.com is a Next.js SPA: the HTML has NO products. The catalog
+  # comes from the portal's own public JSON API (no login needed).
+  # ⚠️ API prices are RIAL (PDP formatted_price "﷼5,199,990,000") — keep currency_unit: rial.
+  # ⚠️ Sold-out products are listed with price=0 and no colours; they are dropped unless
+  #    include_out_of_stock: true (other sources filter OOS site-side too).
+  type: digikala_b2b
+  currency_unit: rial
+  priority: 60
+  min_expected_products: 20
+  degraded_excluded: true
+  base_url: https://b2b.digikala.com/
+  rate_limit_per_sec: 2
+  timeout: 30
+  retries: 3
+  url: https://b2b.digikala.com/api/v1/products?category_id=3&page=1&sort=price-desc
+  max_pages: 100
+  follow_next: true
+  details: all              # all = exact per-colour price/stock via PDP API for every in-stock product
+  max_details: 800
+  include_out_of_stock: false

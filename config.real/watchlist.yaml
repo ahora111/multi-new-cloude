@@ -1,0 +1,13 @@
+# DISCOVERY MODE: every phone found in the shops is compared (cheapest valid price per colour).
+# The same model in two shops is joined automatically (model line, Pro/Max/Ultra/5G, storage, RAM, region, activation
+# must agree). Phones sold by only one shop are listed too (marked "تک‌منبع") unless you set min_sources: 2.
+discovery:
+  enabled: true
+  min_sources: 1            # 2 = only phones that at least two shops sell (real price comparison)
+  brands: []                # e.g. [apple, samsung, xiaomi]  (empty = all brands)
+  exclude_regex: ""         # e.g. "NOKIA 1\\d\\d|Hanofer" to skip feature phones
+
+# Optional: products you want to be sure about. They are always reported (even as "not found") and are not duplicated
+# by discovery. You can leave this empty.
+products: []
+#  - {id: iphone17-256-cha, brand: apple, model: "iPhone 17", storage: 256GB, region: "CH/A", condition: non_active}

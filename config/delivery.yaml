@@ -1,0 +1,72 @@
+# ── تنظیمات سفارش و تحویل هر فروشنده (V2) ─────────────────────────────────────
+# همه‌ی ساعت‌ها به وقت Asia/Tehran است. این مقادیر «نمونه/تخمینی» هستند و باید
+# خودتان بر اساس قرارداد هر فروشنده اصلاح کنید؛ تا وقتی verified: true نشده باشند،
+# در گزارش‌ها «تقریبی» برچسب می‌خورند و هیچ‌گاه به‌عنوان زمان قطعی نمایش داده نمی‌شوند.
+#
+# ساختار هر منبع:
+#   order_windows:            چند بازه سفارش در روز (در صورت نیاز)
+#     start / end             بازه پذیرش سفارش (end = ساعت قطع سفارش / cut-off)
+#     ship_at                 ساعت تقریبی ارسال
+#     delivery_at             ساعت تقریبی رسیدن به قزوین
+#     delivery_day_offset     ۰ = همان روز، ۱ = روز بعد، ...
+#     note                    توضیح/استثنا
+#   active_weekdays           روزهای فعال هفته (monday..sunday / شنبه..جمعه)؛ پیش‌فرض: همه روزها
+#   holidays                  تعطیلات خاص (YYYY-MM-DD)
+#   verified                  true = تاییدشده توسط فروشنده، false = تخمینی (پیش‌فرض)
+#   note                      توضیحات ارسال
+#   shipping_cost_toman       هزینه ارسال (جدا از قیمت گوشی)؛ اگر نامشخص است حذف شود
+#   shipping_note             توضیح هزینه ارسال (مثلا «نیازمند استعلام»)
+#
+# منبعی که در این فایل نباشد: «زمان تحویل نامشخص» — بقیه‌ی منابع تحت تاثیر قرار نمی‌گیرند.
+
+timezone: Asia/Tehran
+sources:
+  # --- نمونه‌های آفلاین پروژه (fixtures) ---
+  shop_a:
+    order_windows:
+    - {start: "09:00", end: "12:00", ship_at: "14:00", delivery_at: "18:00", delivery_day_offset: 0}
+    verified: false
+    note: نمونه‌ی آفلاین — سفارش تا ۱۲، تحویل قزوین ۱۸ همان روز
+  shop_b:
+    order_windows:
+    - {start: "09:00", end: "23:00", ship_at: "23:30", delivery_at: "10:00", delivery_day_offset: 1}
+    verified: false
+    note: نمونه‌ی آفلاین — سفارش تا ۲۳، تحویل قزوین ۱۰ روز بعد
+  shop_c:
+    order_windows:
+    - {start: "09:00", end: "16:00", ship_at: "17:00", delivery_at: "21:00", delivery_day_offset: 0}
+    verified: false
+    note: نمونه‌ی آفلاین
+  # --- فروشندگان واقعی (مقادیر اولیه = تخمینی؛ پس از تایید، verified: true کنید) ---
+  eways:
+    order_windows:
+    - {start: "09:00", end: "12:00", ship_at: "13:30", delivery_at: "18:00", delivery_day_offset: 0}
+    active_weekdays: [saturday, sunday, monday, tuesday, wednesday, thursday]
+    verified: false
+    note: نمونه؛ سفارش تا ۱۲ → تحویل تقریبی قزوین ۱۸ همان روز (روزهای کاری)
+  hamrahtel:
+    order_windows:
+    - {start: "00:00", end: "23:00", ship_at: "23:30", delivery_at: "10:00", delivery_day_offset: 1}
+    active_weekdays: [saturday, sunday, monday, tuesday, wednesday, thursday]
+    verified: false
+    note: نمونه؛ سفارش تا ۲۳ → تحویل تقریبی قزوین ۱۰ صبح روز بعد
+  farnaa:
+    order_windows:
+    - {start: "09:00", end: "14:00", ship_at: "16:00", delivery_at: "20:00", delivery_day_offset: 0}
+    verified: false
+    note: نمونه؛ پس از استعلام از فروشنده اصلاح کنید
+  exontel:
+    order_windows:
+    - {start: "09:00", end: "15:00", ship_at: "17:00", delivery_at: "21:00", delivery_day_offset: 0}
+    verified: false
+    note: نمونه؛ پس از استعلام از فروشنده اصلاح کنید
+  kasrapars:
+    order_windows:
+    - {start: "09:00", end: "13:00", ship_at: "15:00", delivery_at: "19:00", delivery_day_offset: 0}
+    verified: false
+    note: نمونه؛ پس از استعلام از فروشنده اصلاح کنید
+  digikala_b2b:
+    order_windows:
+    - {start: "09:00", end: "17:00", ship_at: "19:00", delivery_at: "12:00", delivery_day_offset: 1}
+    verified: false
+    note: نمونه؛ ارسال شب، رسیدن قزوین ظرف روز بعد
