@@ -29,6 +29,10 @@ def build_csv(products) -> str:
     w = csv.writer(buf, lineterminator="\n")
     w.writerow(["product_id", "model", "variant", "winner_source", "winner_price_toman", "winner_url",
                 "runner_up_source", "runner_up_price_toman", "savings_toman", "savings_percent",
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+>>>>>>> origin/main
                 "offers_total", "offers_valid", "needs_review", "warnings",
                 # V2 columns (appended: consumers of the old layout keep working)
                 "canonical_title", "reference_price_toman", "winner_delivery", "fastest_source",
@@ -46,10 +50,27 @@ def build_csv(products) -> str:
                         (wn.get("delivery_label") or "") if wn else "",
                         fastest.get("source", ""), fastest.get("delivery_label", ""),
                         v.get("price_change_pct", ""), "yes" if v.get("comparison_incomplete") else ""])
+<<<<<<< HEAD
+=======
+=======
+                "offers_total", "offers_valid", "needs_review", "warnings"])
+    for p in products:
+        for v in p["variants"]:
+            wn, ru, sv = v["winner"] or {}, v["runner_up"] or {}, v["savings"] or {}
+            w.writerow([p["id"], p.get("label") or p["model"], v["variant"], wn.get("source", ""), wn.get("price_toman", ""),
+                        wn.get("url", ""), ru.get("source", ""), ru.get("price_toman", ""),
+                        sv.get("amount_toman", ""), sv.get("percent", ""), len(v["offers"]),
+                        sum(1 for o in v["offers"] if o["valid"]), v["needs_review"], " | ".join(v["warnings"])])
+>>>>>>> f17e6a59f11b4c55f7e0c722244e8621d106d9dc
+>>>>>>> origin/main
     return buf.getvalue()
 
 
 def build_markdown(doc) -> str:
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+>>>>>>> origin/main
     from .pricing import reference_price
     L = [f"# گزارش مقایسه قیمت — {_tehran_stamp(doc)} (تومان)", ""]
     s = doc["summary"]
@@ -66,21 +87,52 @@ def build_markdown(doc) -> str:
         L.append(head)
         if p.get("comparison_incomplete"):
             L.append("> ⚠️ مقایسه این محصول ناقص است (یک یا چند منبع در این چرخه در دسترس نبودند).")
+<<<<<<< HEAD
+=======
+=======
+    L = [f"# گزارش مقایسه قیمت — {doc['generated_at'][:16].replace('T', ' ')} (تومان)", ""]
+    s = doc["summary"]
+    L += [f"منابع سالم: {s['sources_ok']} | منابع خراب/مشکوک: {s['sources_failed'] + s['sources_degraded']} | "
+          f"محصولات یافت‌شده: {s['products_found']}/{s['products_total']} | نیاز به بازبینی: {s['review_items']}", ""]
+    if doc["warnings"]:
+        L += ["## ⚠️ هشدارها"] + [f"- {w}" for w in doc["warnings"]] + [""]
+    for p in doc["products"]:
+        L.append(f"## {p.get('label') or p['model']}")
+>>>>>>> f17e6a59f11b4c55f7e0c722244e8621d106d9dc
+>>>>>>> origin/main
         if p["status"] == "not_found":
             L += ["❌ در هیچ منبعی پیدا نشد.", ""]
             continue
         if p["status"] == "no_valid_price":
             L += ["⚠️ پیدا شد ولی پیشنهاد معتبر (موجود و با قیمت درست) وجود ندارد.", ""]
         for v in p["variants"]:
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+>>>>>>> origin/main
             L.append(f"### 🔹 {_color_display(v)}")
             for o in sorted([o for o in v["offers"]], key=lambda o: (not o["valid"], o["price_toman"] or 0)):
                 if o["valid"] and not o["suspect"]:
                     mark = "✅" if v["winner"] and (o["source"], o["offer_id"]) == (v["winner"]["source"], v["winner"]["offer_id"]) else "▫️"
                     L.append(f"- {mark} {o['source']}: {money(o['price_toman'])}" + _age_suffix(o))
+<<<<<<< HEAD
+=======
+=======
+            L.append(f"### 🔹 {v['variant']}")
+            for o in sorted([o for o in v["offers"]], key=lambda o: (not o["valid"], o["price_toman"] or 0)):
+                if o["valid"] and not o["suspect"]:
+                    mark = "✅" if v["winner"] and (o["source"], o["offer_id"]) == (v["winner"]["source"], v["winner"]["offer_id"]) else "▫️"
+                    L.append(f"- {mark} {o['source']}: {money(o['price_toman'])}")
+>>>>>>> f17e6a59f11b4c55f7e0c722244e8621d106d9dc
+>>>>>>> origin/main
                 elif o["suspect"]:
                     L.append(f"- ⚠️ {o['source']}: {money(o['price_toman'])} (مشکوک)")
                 else:
                     L.append(f"- ✖️ {o['source']}: {money(o['price_toman'])} ({o['excluded_reason']})")
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+>>>>>>> origin/main
             for m in v.get("incomplete_sources") or []:
                 L.append(f"- ✖️ {m['source']}: {m['reason']}")
             if v["winner"]:
@@ -96,6 +148,17 @@ def build_markdown(doc) -> str:
                 L.append(f"⚡ سریع‌ترین ارسال: {fast['source']} — {fast['delivery_label']}")
             for a in v.get("alerts") or []:
                 L.append(_alert_line(a))
+<<<<<<< HEAD
+=======
+=======
+            if v["winner"]:
+                w = v["winner"]
+                L.append(f"\n🏆 **{w['source']} — {money(w['price_toman'])}** ({v['why']})")
+                L.append(f"🔗 {w['url'] or 'بدون لینک'}")
+            else:
+                L.append(f"\n⚠️ {v['why']}")
+>>>>>>> f17e6a59f11b4c55f7e0c722244e8621d106d9dc
+>>>>>>> origin/main
             for x in v["warnings"]:
                 L.append(f"⚠️ {x}")
             if v["needs_review"]:
@@ -110,6 +173,10 @@ def build_markdown(doc) -> str:
     return "\n".join(L) + "\n"
 
 
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+>>>>>>> origin/main
 def _age_suffix(o) -> str:
     fa = o.get("fetched_at")
     if not fa:
@@ -122,6 +189,11 @@ def _age_suffix(o) -> str:
         return ""
 
 
+<<<<<<< HEAD
+=======
+=======
+>>>>>>> f17e6a59f11b4c55f7e0c722244e8621d106d9dc
+>>>>>>> origin/main
 def write_all(outdir, doc, matching_report, run_summary):
     out = Path(outdir)
     atomic_write(out / "output.json", json.dumps(doc, ensure_ascii=False, indent=2))
@@ -134,6 +206,10 @@ def write_all(outdir, doc, matching_report, run_summary):
 BRAND_TITLE = {"apple": "🍎 Apple", "samsung": "📱 Samsung", "xiaomi": "📱 Xiaomi", "google": "📱 Google", "nokia": "📱 Nokia",
                "honor": "📱 Honor", "tecno": "📱 Tecno", "other": "📱 سایر برندها"}
 
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+>>>>>>> origin/main
 # ---- V2: one canonical title per product, ALL colours underneath it, every vendor priced per colour ----
 COLOR_EMOJI = {"black": "⚫", "white": "⚪", "blue": "🔵", "green": "🟢", "red": "🔴", "yellow": "🟡",
                "orange": "🟠", "purple": "🟣", "pink": "🌸", "brown": "🟤", "gray": "🔘", "gold": "🟡",
@@ -199,6 +275,11 @@ def _alert_line(a) -> str:
                 f"{money(a.get('prev_price'))} → {money(a.get('new_price'))}")
     return ""
 
+<<<<<<< HEAD
+=======
+=======
+>>>>>>> f17e6a59f11b4c55f7e0c722244e8621d106d9dc
+>>>>>>> origin/main
 
 def _link_noise(products) -> set:
     """Winner URLs shared by 3+ lines (e.g. one category page for a whole shop) carry no information: never print them."""
@@ -245,6 +326,10 @@ def _line(v, key, changes, last_sent, show_links, noisy):
     return line
 
 
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+>>>>>>> origin/main
 def _v2_extra_lines(v) -> list:
     """V2 per-colour lines: incomplete-comparison reasons, drop/opportunity alerts, fastest delivery."""
     out = []
@@ -278,11 +363,28 @@ def build_telegram_messages(doc, group_by="brand", changes=None, removed=None, s
     head = [f"📊 مقایسه قیمت — {_tehran_stamp(doc)} (تهران)",
             "منابع: " + " | ".join(f"{x['name']} {'✅' if x['status'] == 'ok' else '⚠️'} {_status_fa(x)}"
                                    for x in doc["sources"])]
+<<<<<<< HEAD
+=======
+=======
+def build_telegram_messages(doc, group_by="brand", changes=None, removed=None, show_links=True) -> list:
+    """Plain-text posts (Telegram shows Markdown symbols literally). Cheapest valid price PER COLOUR for every phone.
+    changes: None = full report; dict(key -> old price|None) = only those variants (with the old price)."""
+    from . import history
+    products = sorted(doc["products"], key=lambda p: (p["brand"], p.get("label") or p["model"]))
+    noisy = _link_noise(products)
+    head = [f"📊 مقایسه قیمت — {doc['generated_at'][:16].replace('T', ' ')} UTC",
+            "منابع: " + " | ".join(f"{x['name']} {'✅' if x['status'] == 'ok' else '⚠️'}" for x in doc["sources"])]
+>>>>>>> f17e6a59f11b4c55f7e0c722244e8621d106d9dc
+>>>>>>> origin/main
     head += [f"⚠️ {x['name']}: {x['error']}" for x in doc["sources"] if x["status"] != "ok"]
     blocks = []                                          # (brand, product label, text)
     n_lines = 0
     for p in products:
         lines = []
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+>>>>>>> origin/main
         has_winner = any(v["winner"] for v in p["variants"])
         if changes is None and has_winner and p.get("comparison_incomplete"):
             lines.append("⚠️ مقایسه ناقص — یک یا چند منبع در دسترس نبودند")
@@ -292,10 +394,21 @@ def build_telegram_messages(doc, group_by="brand", changes=None, removed=None, s
                 # price at all stays out of the periodic post (it has its own section in JSON/MD)
                 if changes is None and has_winner:
                     lines.append(f"{_color_prefix_swap('🔹 ' + (v['variant'] or '') + ':', v)} قیمت معتبر ندارد ⚠️")
+<<<<<<< HEAD
+=======
+=======
+        for v in p["variants"]:
+            if not v["winner"]:
+>>>>>>> f17e6a59f11b4c55f7e0c722244e8621d106d9dc
+>>>>>>> origin/main
                 continue
             key = history.key(p["id"], v["variant"])
             if changes is not None and key not in changes:
                 continue
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+>>>>>>> origin/main
             base = _color_prefix_swap(_line(v, key, changes, None, show_links, noisy), v)
             lines.append(base)
             if changes is None:
@@ -305,6 +418,17 @@ def build_telegram_messages(doc, group_by="brand", changes=None, removed=None, s
             blocks.append((p["brand"], f"📱 {p.get('title') or p.get('label') or p['model']}\n" + "\n".join(lines)))
     if changes is None:
         head.append(f"{len(blocks)} محصول | مرتب‌شده از گران‌ترین به ارزان‌ترین — ارزان‌ترین قیمت هر رنگ")
+<<<<<<< HEAD
+=======
+=======
+            lines.append(_line(v, key, changes, None, show_links, noisy))
+        if lines:
+            n_lines += len(lines)
+            blocks.append((p["brand"], f"📱 {p.get('label') or p['model']}\n" + "\n".join(lines)))
+    if changes is None:
+        head.append(f"{len(blocks)} محصول | {n_lines} رنگ/واریانت — ارزان‌ترین قیمت هر رنگ")
+>>>>>>> f17e6a59f11b4c55f7e0c722244e8621d106d9dc
+>>>>>>> origin/main
     else:
         head.append(f"فقط تغییرات از آخرین پیام: {n_lines} مورد" + (f" | {len(removed or [])} مورد دیگر پیشنهاد معتبر ندارد" if removed else ""))
     msgs = ["\n".join(head)]
@@ -322,17 +446,30 @@ def build_telegram_messages(doc, group_by="brand", changes=None, removed=None, s
             msgs.append(f"━━ {BRAND_TITLE.get(brand, '📱 ' + brand.capitalize())} ━━\n\n" + "\n\n".join(texts))
     if changes is None and doc["not_found"]:
         msgs.append("❌ در هیچ منبعی پیدا نشد: " + "، ".join(doc["not_found"]))
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+>>>>>>> origin/main
     if changes is None and doc.get("price_changes"):
         top = [c for c in doc["price_changes"] if c.get("type") in ("vendor_drop", "market_best")]
         if top:
             msgs.append("📉 فرصت‌های خرید این چرخه:\n" + "\n".join(
                 f"- {c['product_title']} / {c['variant']} — {_alert_line(c)}" for c in top[:10]))
+<<<<<<< HEAD
+=======
+=======
+>>>>>>> f17e6a59f11b4c55f7e0c722244e8621d106d9dc
+>>>>>>> origin/main
     extra = [w for w in doc["warnings"] if not w.startswith("منبع")]
     if extra:
         msgs.append("⚠️ هشدارها:\n" + "\n".join(f"- {w}" for w in extra[:8]))
     return msgs
 
 
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+>>>>>>> origin/main
 def build_alert_messages(alerts) -> list:
     """Independent short posts for drop/opportunity alerts (sent even when the full report is not due)."""
     groups = {}
@@ -355,3 +492,50 @@ def build_alert_messages(alerts) -> list:
 
 def build_telegram(doc) -> str:
     return "\n\n".join(build_telegram_messages(doc, "none")) + "\n"
+<<<<<<< HEAD
+=======
+=======
+def build_telegram(doc) -> str:
+    return "\n\n".join(build_telegram_messages(doc, "none")) + "\n"
+
+
+def write_all(outdir, doc, matching_report, run_summary):
+    out = Path(outdir)
+    atomic_write(out / "output.json", json.dumps(doc, ensure_ascii=False, indent=2))
+    atomic_write(out / "report.csv", "\ufeff" + build_csv(doc["products"]))  # BOM: Excel reads Persian correctly
+    atomic_write(out / "report.md", build_markdown(doc))
+    atomic_write(out / "matching_report.json", json.dumps(matching_report, ensure_ascii=False, indent=2))
+    atomic_write(out / "run_summary.json", json.dumps(run_summary, ensure_ascii=False, indent=2))
+
+
+def build_telegram(doc) -> str:
+    """Compact plain text (no Markdown symbols, Telegram shows them literally)."""
+    L = [f"📊 مقایسه قیمت — {doc['generated_at'][:16].replace('T', ' ')} UTC"]
+    bad = [x for x in doc["sources"] if x["status"] != "ok"]
+    L.append("منابع: " + " | ".join(f"{x['name']} {'✅' if x['status'] == 'ok' else '⚠️'}" for x in doc["sources"]))
+    for x in bad:
+        L.append(f"⚠️ {x['name']}: {x['error']}")
+    L.append("")
+    for p in doc["products"]:
+        if p["status"] == "not_found":
+            continue
+        L.append(f"📱 {p['model']}" + (f" {p['storage_gb']}GB" if p["storage_gb"] else ""))
+        for v in p["variants"]:
+            w, r = v["winner"], v["runner_up"]
+            if not w:
+                L.append(f"🔹 {v['variant']}: بدون پیشنهاد معتبر")
+                continue
+            flag = " ⚠️" if v["needs_review"] or v["warnings"] else ""
+            L.append(f"🔹 {v['variant']}: 🏆 {w['source']} {money(w['price_toman'])}{flag}")
+            if r:
+                L.append(f"   بعدی: {r['source']} {money(r['price_toman'])}")
+            L.append(f"   🔗 {w['url'] or 'بدون لینک'}")
+        L.append("")
+    if doc["not_found"]:
+        L.append("❌ پیدا نشد: " + "، ".join(doc["not_found"]))
+    extra = [w for w in doc["warnings"] if not w.startswith("منبع")]
+    if extra:
+        L += ["", "⚠️ هشدارها:"] + [f"- {w}" for w in extra[:8]]
+    return "\n".join(L).strip() + "\n"
+>>>>>>> f17e6a59f11b4c55f7e0c722244e8621d106d9dc
+>>>>>>> origin/main

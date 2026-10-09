@@ -1,0 +1,98 @@
+{
+ "data": {
+  "id": 14428,
+  "supplier_id": null,
+  "sku": "DKP-18577783",
+  "type": "configurable",
+  "name": "گوشی موبایل سامسونگ مدل Galaxy A36 دو سیم کارت ظرفیت 256 گیگابایت و رم 8 گیگابایت - ویتنام",
+  "short_title": "Samsung Galaxy A36 - 2 SIM | Storage 256GB - 8GB RAM  - Vietnam",
+  "url_key": "گوشی-موبایل-سامسونگ-مدل-galaxy-a36-دو-سیم-کارت-ظرفیت-256-گیگابایت-و-رم-8-گیگابایت-ویتنام",
+  "price": 999990000,
+  "limit": null,
+  "formatted_price": "﷼999,990,000",
+  "short_description": "<p>گوشی موبایل سامسونگ مدل Galaxy A36 دو سیم کارت ظرفیت 256 گیگابایت و رم 8 گیگابایت - ویتنام</p>",
+  "description": "<p>گوشی موبایل سامسونگ مدل Galaxy A36 دو سیم کارت ظرفیت 256 گیگابایت و رم 8 گیگابایت - ویتنام</p>",
+  "base_image": {
+   "small_image_url": "https://dkstatics-public.digikala.com/digikala-products/dd4c84914d52000cdc3ce54e1ac758ff94f58311_1741527697.jpg?x-oss-process=image/resize,m_lfit,h_100,w_100/format,webp/quality,q_60",
+   "medium_image_url": "https://dkstatics-public.digikala.com/digikala-products/dd4c84914d52000cdc3ce54e1ac758ff94f58311_1741527697.jpg?x-oss-process=image/resize,m_lfit,h_300,w_300/format,webp/quality,q_80",
+   "large_image_url": "https://dkstatics-public.digikala.com/digikala-products/dd4c84914d52000cdc3ce54e1ac758ff94f58311_1741527697.jpg?x-oss-process=image/resize,m_lfit,h_800,w_800/format,webp/quality,q_90",
+   "original_image_url": "https://dkstatics-public.digikala.com/digikala-products/dd4c84914d52000cdc3ce54e1ac758ff94f58311_1741527697.jpg"
+  },
+  "created_at": "2025-04-06T13:07:16.000000Z",
+  "updated_at": "2025-04-06T13:07:16.000000Z",
+  "loyalty_points": null,
+  "in_stock": true,
+  "is_saved": false,
+  "is_item_in_cart": false,
+  "show_quantity_changer": true,
+  "badge": null,
+  "variants": [
+   {
+    "id": 35168,
+    "sku": "DKPC-74440199",
+    "color": {
+     "admin_name": "مشکی",
+     "id": 830,
+     "label": "Black"
+    },
+    "size": null,
+    "price": 1010000000,
+    "warranty": {
+     "admin_name": "گارانتی 18 ماهه -شرکتی",
+     "id": 5032,
+     "label": "گارانتی 18 ماهه -شرکتی"
+    },
+    "limit": null,
+    "remaining_stock": 1,
+    "loyalty_points": null,
+    "seller_id": null,
+    "seller_name": null,
+    "special_features_enabled": false
+   },
+   {
+    "id": 36034,
+    "sku": "DKPC-74642074",
+    "color": {
+     "admin_name": "سفید",
+     "id": 839,
+     "label": "white"
+    },
+    "size": null,
+    "price": 1010000000,
+    "warranty": {
+     "admin_name": "گارانتی 18 ماهه -شرکتی",
+     "id": 5032,
+     "label": "گارانتی 18 ماهه -شرکتی"
+    },
+    "limit": null,
+    "remaining_stock": 2,
+    "loyalty_points": null,
+    "seller_id": 0,
+    "seller_name": "",
+    "special_features_enabled": false
+   },
+   {
+    "id": 68217,
+    "sku": "DKPC-81644158",
+    "color": {
+     "admin_name": "زرد لیمویی",
+     "id": 889,
+     "label": "Lemon-yellow"
+    },
+    "size": null,
+    "price": 999990000,
+    "warranty": {
+     "admin_name": "گارانتی 18 ماهه نوین پرداز همراه هرمس",
+     "id": 4094,
+     "label": "گارانتی 18 ماهه نوین پرداز همراه هرمس"
+    },
+    "limit": null,
+    "remaining_stock": null,
+    "loyalty_points": null,
+    "seller_id": 1,
+    "seller_name": "دیجی‌کالا",
+    "special_features_enabled": false
+   }
+  ]
+ }
+}

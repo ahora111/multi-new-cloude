@@ -1,0 +1,14 @@
+requests>=2.31
+python-dotenv>=1.0
+rapidfuzz>=3.9
+pytest>=8.0
+beautifulsoup4>=4.12
+lxml>=5.0
+tqdm>=4.66
+tenacity>=8.2
+cloudscraper>=1.2
+certifi>=2024.0
+urllib3>=2.0
+playwright>=1.45
+pytz>=2024.1
+persiantools>=5.0

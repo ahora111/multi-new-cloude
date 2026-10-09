@@ -52,8 +52,17 @@ def _offer_dict(off, reason, suspect):
     return {"source": off.source, "offer_id": off.source_offer_id, "title": off.raw_title,
             "raw_color": off.raw_color, "canonical_color": off.color, "color": off.color, "price_raw": _num(off.price_raw), "currency_unit_raw": off.currency_unit_raw,
             "price_toman": _num(off.price_toman), "stock": off.stock, "url": off.url,
+<<<<<<< HEAD
             "valid": reason is None, "excluded_reason": reason, "suspect": suspect,
             "fetched_at": off.fetched_at or ""}
+=======
+<<<<<<< HEAD
+            "valid": reason is None, "excluded_reason": reason, "suspect": suspect,
+            "fetched_at": off.fetched_at or ""}
+=======
+            "valid": reason is None, "excluded_reason": reason, "suspect": suspect}
+>>>>>>> f17e6a59f11b4c55f7e0c722244e8621d106d9dc
+>>>>>>> origin/main
 
 
 def _pick(o):
@@ -110,6 +119,10 @@ REGION_LABEL = {"cha": "CH/A", "singapore": "ZA/A", "usa_apple": "LL/A", "uae_ap
                 "global": "Global", "eu": "EU", "usa": "USA", "china": "China"}
 
 
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+>>>>>>> origin/main
 BRAND_PRETTY = {"apple": "Apple", "samsung": "Samsung", "xiaomi": "Xiaomi", "google": "Google", "nokia": "Nokia",
                 "honor": "Honor", "tecno": "Tecno", "infinix": "Infinix", "huawei": "Huawei", "oneplus": "OnePlus",
                 "motorola": "Motorola", "sony": "Sony", "realme": "Realme", "vivo": "Vivo", "oppo": "Oppo",
@@ -155,6 +168,11 @@ def sort_variants(p) -> None:
     p["variants"] = sorted(p.get("variants", []), key=sort_key)
 
 
+<<<<<<< HEAD
+=======
+=======
+>>>>>>> f17e6a59f11b4c55f7e0c722244e8621d106d9dc
+>>>>>>> origin/main
 def product_label(w) -> str:
     parts = [w.model]
     if w.storage_gb:
@@ -205,9 +223,19 @@ def build_product(watch, matched, priorities, settings, now, degraded, attrs=Non
     for v in variants:
         color = v.get("attributes", {}).get("color") or "unknown"
         v["canonical_variant_key"] = f"{canonical_id}_{color}"
+<<<<<<< HEAD
     return {"id": watch.id, "canonical_product_key": canonical_id, "label": product_label(watch),
             "title": display_title(watch),
             "brand": watch.brand, "model": watch.model,
+=======
+<<<<<<< HEAD
+    return {"id": watch.id, "canonical_product_key": canonical_id, "label": product_label(watch),
+            "title": display_title(watch),
+            "brand": watch.brand, "model": watch.model,
+=======
+    return {"id": watch.id, "canonical_product_key": canonical_id, "label": product_label(watch), "brand": watch.brand, "model": watch.model,
+>>>>>>> f17e6a59f11b4c55f7e0c722244e8621d106d9dc
+>>>>>>> origin/main
             "storage_gb": watch.storage_gb,
             "ram_gb": watch.ram_gb, "region": watch.region, "condition": watch.condition,
             "status": status, "variants": variants, "ignored_offers": ignored}

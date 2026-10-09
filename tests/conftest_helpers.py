@@ -14,6 +14,10 @@ def make_project(tmp_path, settings=None, sources=None, watchlist=None):
     st = yaml.safe_load((cfg / "settings.yaml").read_text(encoding="utf-8"))
     st.update({"output_dir": str(tmp_path / "out"), "history_file": str(tmp_path / "history.jsonl"),
                "cache_dir": str(tmp_path / "cache"), "lock_file": str(tmp_path / "run.lock"),
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+>>>>>>> origin/main
                "telegram_state_file": str(tmp_path / "tg_state.json"),
                # V2 state files must also stay inside the test sandbox
                "source_state_file": str(tmp_path / "source_state.json"),
@@ -21,6 +25,12 @@ def make_project(tmp_path, settings=None, sources=None, watchlist=None):
                "alerts_file": str(tmp_path / "alerts.jsonl"),
                "telegram_alert_state_file": str(tmp_path / "tg_alert_state.json"),
                "telegram_report_state_file": str(tmp_path / "tg_report_state.json")})
+<<<<<<< HEAD
+=======
+=======
+               "telegram_state_file": str(tmp_path / "tg_state.json")})
+>>>>>>> f17e6a59f11b4c55f7e0c722244e8621d106d9dc
+>>>>>>> origin/main
     st.update(settings or {})
     (cfg / "settings.yaml").write_text(yaml.safe_dump(st, allow_unicode=True), encoding="utf-8")
     if sources is not None:

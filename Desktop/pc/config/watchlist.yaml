@@ -1,0 +1,26 @@
+# Products to track. Only these are compared. Anything not found is reported as "not found".
+products:
+  - id: iphone17-256
+    brand: apple
+    model: "iPhone 17"          # exact model line; Pro / Pro Max / Air / e are DIFFERENT products
+    storage: 256GB
+    colors: [any]               # any = every colour is priced separately
+  - id: iphone17pro-256
+    brand: apple
+    model: "iPhone 17 Pro"
+    storage: 256GB
+    max_price: 95000000         # optional: warn when the winner is above this
+  - id: galaxy-a17-4g-128
+    brand: samsung
+    model: "Galaxy A17 4G"
+    storage: 128GB
+    ram: 4
+  - id: redmi-note-14-256-8
+    brand: xiaomi
+    model: "Redmi Note 14"
+    storage: 256GB
+    ram: 8
+  - id: pixel-10-pro-256
+    brand: google
+    model: "Pixel 10 Pro"
+    storage: 256GB

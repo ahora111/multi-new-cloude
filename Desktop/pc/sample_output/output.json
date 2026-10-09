@@ -1,0 +1,539 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-09-19T06:40:12.738424+00:00",
+  "currency": "toman",
+  "products": [
+    {
+      "id": "iphone17-256",
+      "brand": "apple",
+      "model": "iPhone 17",
+      "storage_gb": 256,
+      "ram_gb": null,
+      "region": null,
+      "condition": null,
+      "status": "found",
+      "variants": [
+        {
+          "offers": [
+            {
+              "source": "shop_a",
+              "offer_id": "a2",
+              "title": "Apple iPhone 17 256GB Black CH/A",
+              "color": "black",
+              "price_raw": 64900000,
+              "currency_unit_raw": "toman",
+              "price_toman": 64900000,
+              "stock": "IN_STOCK",
+              "url": "https://shop-a.example/product/a2",
+              "valid": true,
+              "excluded_reason": null,
+              "suspect": false
+            },
+            {
+              "source": "shop_b",
+              "offer_id": "b2",
+              "title": "آیفون 17 256 گیگ مشکی",
+              "color": "black",
+              "price_raw": 649500000,
+              "currency_unit_raw": "rial",
+              "price_toman": 64950000,
+              "stock": "IN_STOCK",
+              "url": "https://shop-b.example/p/b2",
+              "valid": true,
+              "excluded_reason": null,
+              "suspect": false
+            },
+            {
+              "source": "shop_c",
+              "offer_id": "c2",
+              "title": "iPhone 17 256GB Black",
+              "color": "black",
+              "price_raw": 65100000,
+              "currency_unit_raw": "toman",
+              "price_toman": 65100000,
+              "stock": "IN_STOCK",
+              "url": "https://shop-c.example/c2",
+              "valid": true,
+              "excluded_reason": null,
+              "suspect": false
+            }
+          ],
+          "winner": {
+            "source": "shop_a",
+            "offer_id": "a2",
+            "price_toman": 64900000,
+            "url": "https://shop-a.example/product/a2"
+          },
+          "runner_up": {
+            "source": "shop_b",
+            "offer_id": "b2",
+            "price_toman": 64950000,
+            "url": "https://shop-b.example/p/b2"
+          },
+          "savings": {
+            "amount_toman": 50000,
+            "percent": 0.08
+          },
+          "why": "ارزان‌ترین پیشنهاد معتبر؛ 50,000 تومان (0.1٪) ارزان‌تر از shop_b",
+          "needs_review": false,
+          "warnings": [],
+          "variant": "black",
+          "attributes": {
+            "color": "black",
+            "ram_gb": null
+          },
+          "single_source": false
+        },
+        {
+          "offers": [
+            {
+              "source": "shop_a",
+              "offer_id": "a1",
+              "title": "گوشی موبایل اپل مدل iPhone 17 ظرفیت 256 گیگابایت - آبی",
+              "color": "blue",
+              "price_raw": 64500000,
+              "currency_unit_raw": "toman",
+              "price_toman": 64500000,
+              "stock": "IN_STOCK",
+              "url": "https://shop-a.example/product/a1",
+              "valid": true,
+              "excluded_reason": null,
+              "suspect": false
+            },
+            {
+              "source": "shop_b",
+              "offer_id": "b1",
+              "title": "آیفون 17 256 گیگ آبی",
+              "color": "blue",
+              "price_raw": 641000000,
+              "currency_unit_raw": "rial",
+              "price_toman": 64100000,
+              "stock": "IN_STOCK",
+              "url": "https://shop-b.example/p/b1",
+              "valid": true,
+              "excluded_reason": null,
+              "suspect": false
+            },
+            {
+              "source": "shop_c",
+              "offer_id": "c1",
+              "title": "iPhone 17 256GB Blue",
+              "color": "blue",
+              "price_raw": 64200000,
+              "currency_unit_raw": "toman",
+              "price_toman": 64200000,
+              "stock": "IN_STOCK",
+              "url": "https://shop-c.example/c1",
+              "valid": true,
+              "excluded_reason": null,
+              "suspect": false
+            }
+          ],
+          "winner": {
+            "source": "shop_b",
+            "offer_id": "b1",
+            "price_toman": 64100000,
+            "url": "https://shop-b.example/p/b1"
+          },
+          "runner_up": {
+            "source": "shop_c",
+            "offer_id": "c1",
+            "price_toman": 64200000,
+            "url": "https://shop-c.example/c1"
+          },
+          "savings": {
+            "amount_toman": 100000,
+            "percent": 0.16
+          },
+          "why": "ارزان‌ترین پیشنهاد معتبر؛ 100,000 تومان (0.2٪) ارزان‌تر از shop_c",
+          "needs_review": false,
+          "warnings": [],
+          "variant": "blue",
+          "attributes": {
+            "color": "blue",
+            "ram_gb": null
+          },
+          "single_source": false
+        }
+      ],
+      "ignored_offers": []
+    },
+    {
+      "id": "iphone17pro-256",
+      "brand": "apple",
+      "model": "iPhone 17 Pro",
+      "storage_gb": 256,
+      "ram_gb": null,
+      "region": null,
+      "condition": null,
+      "status": "found",
+      "variants": [
+        {
+          "offers": [
+            {
+              "source": "shop_a",
+              "offer_id": "a3",
+              "title": "Apple iPhone 17 Pro 256GB Silver CH/A",
+              "color": "silver",
+              "price_raw": 89900000,
+              "currency_unit_raw": "toman",
+              "price_toman": 89900000,
+              "stock": "IN_STOCK",
+              "url": "https://shop-a.example/product/a3",
+              "valid": true,
+              "excluded_reason": null,
+              "suspect": false
+            },
+            {
+              "source": "shop_b",
+              "offer_id": "b3",
+              "title": "Apple iPhone 17 Pro 256GB Silver",
+              "color": "silver",
+              "price_raw": 891000000,
+              "currency_unit_raw": "rial",
+              "price_toman": 89100000,
+              "stock": "IN_STOCK",
+              "url": "https://shop-b.example/p/b3",
+              "valid": true,
+              "excluded_reason": null,
+              "suspect": false
+            },
+            {
+              "source": "shop_c",
+              "offer_id": "c3",
+              "title": "iPhone 17 Pro 256GB Silver",
+              "color": "silver",
+              "price_raw": 90500000,
+              "currency_unit_raw": "toman",
+              "price_toman": 90500000,
+              "stock": "IN_STOCK",
+              "url": "https://shop-c.example/c3",
+              "valid": true,
+              "excluded_reason": null,
+              "suspect": false
+            }
+          ],
+          "winner": {
+            "source": "shop_b",
+            "offer_id": "b3",
+            "price_toman": 89100000,
+            "url": "https://shop-b.example/p/b3"
+          },
+          "runner_up": {
+            "source": "shop_a",
+            "offer_id": "a3",
+            "price_toman": 89900000,
+            "url": "https://shop-a.example/product/a3"
+          },
+          "savings": {
+            "amount_toman": 800000,
+            "percent": 0.89
+          },
+          "why": "ارزان‌ترین پیشنهاد معتبر؛ 800,000 تومان (0.9٪) ارزان‌تر از shop_a",
+          "needs_review": false,
+          "warnings": [],
+          "variant": "silver",
+          "attributes": {
+            "color": "silver",
+            "ram_gb": null
+          },
+          "single_source": false
+        }
+      ],
+      "ignored_offers": []
+    },
+    {
+      "id": "galaxy-a17-4g-128",
+      "brand": "samsung",
+      "model": "Galaxy A17 4G",
+      "storage_gb": 128,
+      "ram_gb": 4,
+      "region": null,
+      "condition": null,
+      "status": "found",
+      "variants": [
+        {
+          "offers": [
+            {
+              "source": "shop_a",
+              "offer_id": "a6",
+              "title": "Samsung Galaxy A17 4G 128GB RAM 4GB مشکی",
+              "color": "black",
+              "price_raw": 9800000,
+              "currency_unit_raw": "toman",
+              "price_toman": 9800000,
+              "stock": "IN_STOCK",
+              "url": "https://shop-a.example/product/a6",
+              "valid": true,
+              "excluded_reason": null,
+              "suspect": false
+            },
+            {
+              "source": "shop_b",
+              "offer_id": "b4",
+              "title": "گوشی سامسونگ گلکسی A17 (RAM 4) ظرفیت 128 گیگ 4G مشکی",
+              "color": "black",
+              "price_raw": 97500000,
+              "currency_unit_raw": "rial",
+              "price_toman": 9750000,
+              "stock": "IN_STOCK",
+              "url": "https://shop-b.example/p/b4",
+              "valid": true,
+              "excluded_reason": null,
+              "suspect": false
+            },
+            {
+              "source": "shop_c",
+              "offer_id": "c4",
+              "title": "Galaxy A17 4G 128GB RAM 4GB Black",
+              "color": "black",
+              "price_raw": 9900000,
+              "currency_unit_raw": "toman",
+              "price_toman": 9900000,
+              "stock": "IN_STOCK",
+              "url": "https://shop-c.example/c4",
+              "valid": true,
+              "excluded_reason": null,
+              "suspect": false
+            }
+          ],
+          "winner": {
+            "source": "shop_b",
+            "offer_id": "b4",
+            "price_toman": 9750000,
+            "url": "https://shop-b.example/p/b4"
+          },
+          "runner_up": {
+            "source": "shop_a",
+            "offer_id": "a6",
+            "price_toman": 9800000,
+            "url": "https://shop-a.example/product/a6"
+          },
+          "savings": {
+            "amount_toman": 50000,
+            "percent": 0.51
+          },
+          "why": "ارزان‌ترین پیشنهاد معتبر؛ 50,000 تومان (0.5٪) ارزان‌تر از shop_a",
+          "needs_review": false,
+          "warnings": [],
+          "variant": "black",
+          "attributes": {
+            "color": "black"
+          },
+          "single_source": false
+        }
+      ],
+      "ignored_offers": []
+    },
+    {
+      "id": "redmi-note-14-256-8",
+      "brand": "xiaomi",
+      "model": "Redmi Note 14",
+      "storage_gb": 256,
+      "ram_gb": 8,
+      "region": null,
+      "condition": null,
+      "status": "found",
+      "variants": [
+        {
+          "offers": [
+            {
+              "source": "shop_a",
+              "offer_id": "a8",
+              "title": "Redmi Note 14 256GB RAM 8GB Black",
+              "color": "black",
+              "price_raw": 13700000,
+              "currency_unit_raw": "toman",
+              "price_toman": 13700000,
+              "stock": "OUT_OF_STOCK",
+              "url": "https://shop-a.example/product/a8",
+              "valid": false,
+              "excluded_reason": "ناموجود یا نامشخص",
+              "suspect": false
+            },
+            {
+              "source": "shop_b",
+              "offer_id": "b5",
+              "title": "Xiaomi Redmi Note 14 256GB RAM 8GB مشکی",
+              "color": "black",
+              "price_raw": 136500000,
+              "currency_unit_raw": "rial",
+              "price_toman": 13650000,
+              "stock": "IN_STOCK",
+              "url": "https://shop-b.example/p/b5",
+              "valid": true,
+              "excluded_reason": null,
+              "suspect": false
+            },
+            {
+              "source": "shop_c",
+              "offer_id": "c5",
+              "title": "Redmi Note 14 256GB RAM 8GB Black",
+              "color": "black",
+              "price_raw": 13800000,
+              "currency_unit_raw": "toman",
+              "price_toman": 13800000,
+              "stock": "IN_STOCK",
+              "url": "https://shop-c.example/c5",
+              "valid": true,
+              "excluded_reason": null,
+              "suspect": false
+            }
+          ],
+          "winner": {
+            "source": "shop_b",
+            "offer_id": "b5",
+            "price_toman": 13650000,
+            "url": "https://shop-b.example/p/b5"
+          },
+          "runner_up": {
+            "source": "shop_c",
+            "offer_id": "c5",
+            "price_toman": 13800000,
+            "url": "https://shop-c.example/c5"
+          },
+          "savings": {
+            "amount_toman": 150000,
+            "percent": 1.09
+          },
+          "why": "ارزان‌ترین پیشنهاد معتبر؛ 150,000 تومان (1.1٪) ارزان‌تر از shop_c",
+          "needs_review": false,
+          "warnings": [],
+          "variant": "black",
+          "attributes": {
+            "color": "black"
+          },
+          "single_source": false
+        },
+        {
+          "offers": [
+            {
+              "source": "shop_a",
+              "offer_id": "a10",
+              "title": "Redmi Note 14 256GB RAM 8GB Gray",
+              "color": "gray",
+              "price_raw": 13900000,
+              "currency_unit_raw": "toman",
+              "price_toman": 13900000,
+              "stock": "IN_STOCK",
+              "url": "https://shop-a.example/product/a10",
+              "valid": true,
+              "excluded_reason": null,
+              "suspect": false
+            },
+            {
+              "source": "shop_b",
+              "offer_id": "b6",
+              "title": "Xiaomi Redmi Note 14 256GB RAM 8GB خاکستری",
+              "color": "gray",
+              "price_raw": 137000000,
+              "currency_unit_raw": "rial",
+              "price_toman": 13700000,
+              "stock": "IN_STOCK",
+              "url": "https://shop-b.example/p/b6",
+              "valid": true,
+              "excluded_reason": null,
+              "suspect": false
+            },
+            {
+              "source": "shop_c",
+              "offer_id": "c6",
+              "title": "Redmi Note 14 256GB RAM 8GB Gray",
+              "color": "gray",
+              "price_raw": 138000,
+              "currency_unit_raw": "toman",
+              "price_toman": 138000,
+              "stock": "IN_STOCK",
+              "url": "https://shop-c.example/c6",
+              "valid": true,
+              "excluded_reason": null,
+              "suspect": true
+            }
+          ],
+          "winner": {
+            "source": "shop_b",
+            "offer_id": "b6",
+            "price_toman": 13700000,
+            "url": "https://shop-b.example/p/b6"
+          },
+          "runner_up": {
+            "source": "shop_a",
+            "offer_id": "a10",
+            "price_toman": 13900000,
+            "url": "https://shop-a.example/product/a10"
+          },
+          "savings": {
+            "amount_toman": 200000,
+            "percent": 1.44
+          },
+          "why": "ارزان‌ترین پیشنهاد معتبر؛ 200,000 تومان (1.4٪) ارزان‌تر از shop_a",
+          "needs_review": false,
+          "warnings": [
+            "1 قیمت پرت نسبت به میانه حذف شد"
+          ],
+          "variant": "gray",
+          "attributes": {
+            "color": "gray"
+          },
+          "single_source": false
+        }
+      ],
+      "ignored_offers": []
+    },
+    {
+      "id": "pixel-10-pro-256",
+      "brand": "google",
+      "model": "Pixel 10 Pro",
+      "storage_gb": 256,
+      "ram_gb": null,
+      "region": null,
+      "condition": null,
+      "status": "not_found",
+      "variants": [],
+      "ignored_offers": []
+    }
+  ],
+  "not_found": [
+    "pixel-10-pro-256"
+  ],
+  "review_queue": [],
+  "sources": [
+    {
+      "name": "shop_a",
+      "status": "ok",
+      "count": 10,
+      "seconds": 0.0,
+      "error": null,
+      "currency_unit": "toman"
+    },
+    {
+      "name": "shop_b",
+      "status": "ok",
+      "count": 7,
+      "seconds": 0.0,
+      "error": null,
+      "currency_unit": "rial"
+    },
+    {
+      "name": "shop_c",
+      "status": "ok",
+      "count": 6,
+      "seconds": 0.0,
+      "error": null,
+      "currency_unit": "toman"
+    }
+  ],
+  "warnings": [],
+  "summary": {
+    "sources_ok": 3,
+    "sources_failed": 0,
+    "sources_degraded": 0,
+    "offers_total": 23,
+    "products_total": 5,
+    "products_found": 4,
+    "products_not_found": 1,
+    "review_items": 0,
+    "suspect_offers": 1,
+    "needs_review_variants": 0
+  }
+}

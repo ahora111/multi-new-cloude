@@ -1,4 +1,8 @@
 from __future__ import annotations
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+>>>>>>> origin/main
 import json
 import logging
 import os
@@ -6,16 +10,39 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
+<<<<<<< HEAD
+=======
+=======
+import logging
+import os
+import time
+from dataclasses import dataclass, field
+from datetime import datetime, timezone
+>>>>>>> f17e6a59f11b4c55f7e0c722244e8621d106d9dc
+>>>>>>> origin/main
 from pathlib import Path
 from . import history, report, telegram
 from .config import ConfigError, load_discovery, load_overrides, load_settings, load_sources, load_watchlist
 from .discovery import discover
 from .canonical import strong_identifier
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+>>>>>>> origin/main
 from .delivery import load_schedules, estimate, SHIPPING_UNKNOWN_LABEL
 from .extract import Extractor
 from .lock import RunLock
 from .matcher import AUTO, MatchResult, assign
 from .pricing import build_product, scale_check, sort_products, sort_variants
+<<<<<<< HEAD
+=======
+=======
+from .extract import Extractor
+from .lock import RunLock
+from .matcher import AUTO, MatchResult, assign
+from .pricing import build_product, scale_check
+>>>>>>> f17e6a59f11b4c55f7e0c722244e8621d106d9dc
+>>>>>>> origin/main
 from .sources import build_source
 
 log = logging.getLogger("pricecompare")
@@ -24,8 +51,16 @@ EXIT_OK, EXIT_ALL_FAILED, EXIT_REQUIRE_ALL, EXIT_CONFIG, EXIT_LOCKED = 0, 2, 3, 
 
 EXIT_TELEGRAM = 6
 
+<<<<<<< HEAD
 STATUS_FA = {"ok": "موفق", "degraded": "ناقص", "failed": "ناموفق", "stale": "داده قدیمی", "cached": "از کش"}
 
+=======
+<<<<<<< HEAD
+STATUS_FA = {"ok": "موفق", "degraded": "ناقص", "failed": "ناموفق", "stale": "داده قدیمی", "cached": "از کش"}
+
+=======
+>>>>>>> f17e6a59f11b4c55f7e0c722244e8621d106d9dc
+>>>>>>> origin/main
 
 @dataclass
 class RunResult:
@@ -99,11 +134,23 @@ def run(config_dir="config", output_dir=None, dry_run=False, only_source=None, r
     try:
         with RunLock(settings.lock_file, settings.lock_stale_minutes):
             return _run_locked(settings, ex, watchlist, source_cfgs, overrides, outdir, dry_run, require_all,
+<<<<<<< HEAD
                                base_dir, http, now, send_telegram, discovery, config_dir)
+=======
+<<<<<<< HEAD
+                               base_dir, http, now, send_telegram, discovery, config_dir)
+=======
+                               base_dir, http, now, send_telegram, discovery)
+>>>>>>> f17e6a59f11b4c55f7e0c722244e8621d106d9dc
+>>>>>>> origin/main
     except LockError as exc:
         return RunResult(EXIT_LOCKED, message=str(exc))
 
 
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+>>>>>>> origin/main
 def _utcnow_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
@@ -195,11 +242,37 @@ def _fetch_source(cfg, settings, base_dir, http, discovery, watchlist, prev_stat
             catalog = src.raw_count if src.raw_count is not None else len(got)
             st["count"], st["catalog_count"] = len(got), catalog
             catalog_titles = list(src.catalog_titles) or [o.raw_title for o in got]
+<<<<<<< HEAD
+=======
+=======
+def _run_locked(settings, ex, watchlist, source_cfgs, overrides, outdir, dry_run, require_all, base_dir, http, now,
+                send_telegram=True, discovery=None):
+    from .config import Discovery
+    discovery = discovery or Discovery()
+    offers, status, degraded, catalogs = [], [], set(), {}
+    sources_t0 = time.monotonic()
+    for cfg in source_cfgs:
+        t0 = time.monotonic()
+        st = {"name": cfg.name, "status": "ok", "count": 0, "seconds": 0.0, "error": None,
+              "currency_unit": cfg.currency_unit}
+        try:
+            log.info("source %s: fetching ...", cfg.name)
+            src = build_source(cfg, settings, base_dir, http)
+            got = src.fetch([] if discovery.enabled else watchlist)   # discovery reads the WHOLE catalog
+            catalog = src.raw_count if src.raw_count is not None else len(got)
+            st["count"], st["catalog_count"] = len(got), catalog
+            catalogs[cfg.name] = list(src.catalog_titles) or [o.raw_title for o in got]
+>>>>>>> f17e6a59f11b4c55f7e0c722244e8621d106d9dc
+>>>>>>> origin/main
             st["note"] = src.note
             # health = size of the WHOLE catalog we saw, not of the watchlist-filtered subset
             if catalog < cfg.min_expected_products:
                 st["status"] = "degraded"
                 st["error"] = f"only {catalog} products in catalog; expected >= {cfg.min_expected_products}"
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+>>>>>>> origin/main
             elif allow_snapshot_write:
                 _save_snapshot(settings.source_snapshots_dir, cfg.name, got, catalog_titles)
         if not st["count"]:
@@ -274,6 +347,22 @@ def _run_locked(settings, ex, watchlist, source_cfgs, overrides, outdir, dry_run
     if not dry_run:
         _save_source_state(settings.source_state_file, new_source_state)
     log.info("all sources finished in %.1fs: %d offers collected", time.monotonic() - t_cycle, len(offers))
+<<<<<<< HEAD
+=======
+=======
+                if cfg.degraded_excluded:
+                    degraded.add(cfg.name)
+            offers.extend(got)
+        except Exception as exc:                       # one broken source must not stop the others
+            st["status"], st["error"] = "failed", f"{exc.__class__.__name__}: {exc}"
+            log.error("source %s failed: %s", cfg.name, st["error"])
+        st["seconds"] = round(time.monotonic() - t0, 2)
+        status.append(st)
+        log.info("source %s: %s in %.1fs (%d offers%s)", cfg.name, st["status"], st["seconds"], st["count"],
+                 f", catalog={st['catalog_count']}" if "catalog_count" in st else "")
+    log.info("all sources finished in %.1fs: %d offers collected", time.monotonic() - sources_t0, len(offers))
+>>>>>>> f17e6a59f11b4c55f7e0c722244e8621d106d9dc
+>>>>>>> origin/main
 
     # Enforce the global Offer identity contract at the pipeline boundary. A source may
     # discover the same product more than once (multiple pages, fallback URLs, or a
@@ -283,11 +372,23 @@ def _run_locked(settings, ex, watchlist, source_cfgs, overrides, outdir, dry_run
     offers = dedupe_offers(offers)
 
     failed = [s for s in status if s["status"] == "failed"]
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+>>>>>>> origin/main
     bad = [s for s in status if s["status"] not in ("ok", "cached")]
     summary = {"sources_ok": sum(s["status"] == "ok" for s in status), "sources_failed": len(failed),
                "sources_degraded": sum(s["status"] == "degraded" for s in status),
                "sources_stale": sum(s["status"] == "stale" for s in status),
                "sources_cached": sum(s["status"] == "cached" for s in status)}
+<<<<<<< HEAD
+=======
+=======
+    bad = [s for s in status if s["status"] != "ok"]
+    summary = {"sources_ok": sum(s["status"] == "ok" for s in status), "sources_failed": len(failed),
+               "sources_degraded": sum(s["status"] == "degraded" for s in status)}
+>>>>>>> f17e6a59f11b4c55f7e0c722244e8621d106d9dc
+>>>>>>> origin/main
     if all(s["status"] == "failed" for s in status) or not offers:
         msg = "all sources failed or returned nothing; previous output kept untouched"
         return RunResult(EXIT_ALL_FAILED, summary={**summary, "sources": status}, message=msg)
@@ -344,6 +445,10 @@ def _run_locked(settings, ex, watchlist, source_cfgs, overrides, outdir, dry_run
         for v in p["variants"]:
             v["single_source"] = len({o["source"] for o in v["offers"] if o["valid"]}) == 1
 
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+>>>>>>> origin/main
     # ---- V2: independent cheapest / fastest selection per colour + transparent incomplete flags ----
     schedules = {}
     try:
@@ -387,6 +492,19 @@ def _run_locked(settings, ex, watchlist, source_cfgs, overrides, outdir, dry_run
     run_at = now.isoformat()
     cycle = {"started_at": cycle_started, "finished_at": None, "interval_minutes": settings.cycle_interval_minutes,
              "timezone": settings.timezone, "parallel": parallel, "workers": workers}
+<<<<<<< HEAD
+=======
+=======
+    not_found = [p["id"] for p in products if p["status"] == "not_found"]
+    summary.update({
+        "offers_total": len(offers), "products_total": len(products), "products_discovered": len(dyn_ids & {p["id"] for p in products}),
+        "products_found": sum(p["status"] == "found" for p in products), "products_not_found": len(not_found),
+        "review_items": len(review_queue),
+        "suspect_offers": sum(o["suspect"] for p in products for v in p["variants"] for o in v["offers"]),
+        "needs_review_variants": sum(v["needs_review"] for p in products for v in p["variants"])})
+    run_at = now.isoformat()
+>>>>>>> f17e6a59f11b4c55f7e0c722244e8621d106d9dc
+>>>>>>> origin/main
     # Attach an auditable, source-independent identity trace to every match row.
     offer_by_key = {(o.source, str(o.source_offer_id)): o for o in offers}
     for row in match_report:
@@ -409,21 +527,67 @@ def _run_locked(settings, ex, watchlist, source_cfgs, overrides, outdir, dry_run
         })
     doc = report.build_document(run_at, products, not_found, review_queue, status, warnings)
     doc["summary"] = summary
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+>>>>>>> origin/main
     doc["cycle"] = {**cycle, "finished_at": _utcnow_iso()}
     doc["price_changes"] = changes
     doc["alerts"] = alerts
     run_summary = {"run_at": run_at, "summary": summary, "sources": status, "warnings": warnings,
                    "cycle": doc["cycle"]}
+<<<<<<< HEAD
+=======
+=======
+    run_summary = {"run_at": run_at, "summary": summary, "sources": status, "warnings": warnings}
+>>>>>>> f17e6a59f11b4c55f7e0c722244e8621d106d9dc
+>>>>>>> origin/main
     exit_code, tg_status = EXIT_OK, "disabled (settings: telegram_enabled=false)"
     current = {history.key(p["id"], v["variant"]): {"price": v["winner"]["price_toman"], "source": v["winner"]["source"]}
                for p in products for v in p["variants"] if v["winner"]}
     if not dry_run:
         report.write_all(outdir, doc, match_report, run_summary)
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+>>>>>>> origin/main
         history.append_alerts(settings.alerts_file, changes, run_at)
         if settings.telegram_enabled and not send_telegram:
             tg_status = "skipped (--no-telegram)"
         elif settings.telegram_enabled:
             tg_status, exit_code = _telegram_phase(settings, doc, products, current, alerts, run_at, now)
+<<<<<<< HEAD
+=======
+=======
+        if settings.telegram_enabled and not send_telegram:
+            tg_status = "skipped (--no-telegram)"
+        elif settings.telegram_enabled:
+            last_sent = history.load_state(settings.telegram_state_file)
+            changed_map, removed = history.changed_keys(current, last_sent, settings.telegram_min_change_pct)
+            changed = bool(changed_map or removed)
+            if settings.telegram_only_on_change and not changed and current:
+                tg_status = f"no change >= {settings.telegram_min_change_pct}% since the last message: not sent"
+            else:
+                tok, chat = os.environ.get("TELEGRAM_BOT_TOKEN"), os.environ.get("TELEGRAM_CHAT_ID")
+                if not (tok and chat):
+                    tg_status, exit_code = "FAILED: TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID are not set", EXIT_TELEGRAM
+                else:
+                    try:
+                        msgs = report.build_telegram_messages(
+                            doc, settings.telegram_group_by, changed_map if settings.telegram_mode == "changes_only" else None,
+                            removed, settings.telegram_show_links)
+                        log.info("telegram: sending %d message(s) ...", len(msgs))
+                        parts = telegram.send(tok, chat, msgs, settings.telegram_max_message_len,
+                                              dry_run=settings.telegram_dry_run, max_messages=settings.telegram_max_messages)
+                        if settings.telegram_dry_run:
+                            tg_status = f"dry-run: {len(parts)} message(s) NOT sent (telegram_dry_run=true)"
+                        else:
+                            history.save_state(settings.telegram_state_file, current)
+                            tg_status = f"sent {len(parts)} message(s)"
+                    except Exception as exc:               # never leak the bot token (it is inside the request URL)
+                        tg_status, exit_code = "FAILED: " + str(exc).replace(tok, "***"), EXIT_TELEGRAM
+>>>>>>> f17e6a59f11b4c55f7e0c722244e8621d106d9dc
+>>>>>>> origin/main
         history.append(settings.history_file, products, run_at)
     else:
         tg_status = "dry-run: nothing written or sent"
@@ -434,6 +598,10 @@ def _run_locked(settings, ex, watchlist, source_cfgs, overrides, outdir, dry_run
                      match_report=match_report, catalog_titles=catalogs)
 
 
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+>>>>>>> origin/main
 def attach_delivery_and_fastest(products, schedules, now, settings) -> None:
     """Per colour: delivery estimate of every valid vendor (independent per source, Asia/Tehran),
     the FASTEST vendor (earliest arrival; ties -> cheaper price) and deltas vs the cheapest."""
@@ -572,6 +740,11 @@ def _telegram_phase(settings, doc, products, current, alerts, run_at, now):
     return " | ".join(statuses) or "nothing to send", exit_code
 
 
+<<<<<<< HEAD
+=======
+=======
+>>>>>>> f17e6a59f11b4c55f7e0c722244e8621d106d9dc
+>>>>>>> origin/main
 def closest_catalog_titles(watch, watch_attrs, titles, ex: Extractor, n=3):
     """Catalog titles most similar to a watchlist product (helps to see why nothing matched: 'Note 15' vs 'Note 14')."""
     want = set(watch_attrs.core)

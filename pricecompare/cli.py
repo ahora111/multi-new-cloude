@@ -89,6 +89,10 @@ def _print_summary(res, show_offers=0, print_report=False):
         print("\n" + build_markdown(res.doc))
 
 
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+>>>>>>> origin/main
 def _watch(a) -> int:
     """V2 shared hourly cycle: fetch ALL enabled sources, compare, alert, sleep, repeat.
     The run lock makes overlapping cycles impossible, so history/alerts never duplicate."""
@@ -137,6 +141,11 @@ def _delivery(a) -> int:
     return 0
 
 
+<<<<<<< HEAD
+=======
+=======
+>>>>>>> f17e6a59f11b4c55f7e0c722244e8621d106d9dc
+>>>>>>> origin/main
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(prog="pricecompare", description="Multi-source price comparison")
     ap.add_argument("--config-dir", default="config")
@@ -151,10 +160,19 @@ def main(argv=None) -> int:
     r.add_argument("--no-telegram", action="store_true", help="never send Telegram messages in this run")
     r.add_argument("--show-offers", type=int, default=0, metavar="N", help="print N sample offers per source with how they matched")
     r.add_argument("--print-report", action="store_true", help="print the Persian report to the console/log")
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+>>>>>>> origin/main
     w = sub.add_parser("watch", help="run the shared update cycle every cycle_interval_minutes (default: hourly)")
     w.add_argument("--cycles", type=int, default=0, help="number of cycles (0 = run forever)")
     w.add_argument("--dry-run", action="store_true")
     d = sub.add_parser("delivery", help="show each source's order cut-off and estimated delivery to Qazvin (now)")
+<<<<<<< HEAD
+=======
+=======
+>>>>>>> f17e6a59f11b4c55f7e0c722244e8621d106d9dc
+>>>>>>> origin/main
     sub.add_parser("check-sources", help="fetch every source and report health")
     d = sub.add_parser("debug-hamrahtel", help="print what Hamrahtel really renders (to fix the parser)")
     d.add_argument("--category", default="mobile")
@@ -177,10 +195,19 @@ def main(argv=None) -> int:
         if res.exit_code != EXIT_OK:
             print(res.message, file=sys.stderr)
         return res.exit_code
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+>>>>>>> origin/main
     if a.cmd == "watch":
         return _watch(a)
     if a.cmd == "delivery":
         return _delivery(a)
+<<<<<<< HEAD
+=======
+=======
+>>>>>>> f17e6a59f11b4c55f7e0c722244e8621d106d9dc
+>>>>>>> origin/main
     if a.cmd == "debug-hamrahtel":
         from .sources.hamrahtel import dump_page
         print(dump_page(a.category, a.lines, grep=a.grep))

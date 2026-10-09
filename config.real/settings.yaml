@@ -17,6 +17,10 @@ telegram_group_by: brand          # brand | product | none  -> one post per bran
 telegram_mode: full              # full = every phone each time | changes_only = only the colours whose price moved
 telegram_show_links: true
 telegram_max_messages: 60
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+>>>>>>> origin/main
 
 # ---- V2: چرخه به‌روزرسانی مشترک، هشدار قیمت، زمان‌بندی تلگرام ----
 cycle_interval_minutes: 60          # فاصله پیش‌فرض چرخه مشترک (دقیقه)
@@ -33,3 +37,8 @@ telegram_alert_state_file: data/telegram_alert_state.json
 telegram_report_times: []           # مثال: ["09:00", "21:00"] به وقت تهران؛ خالی = هر چرخه
 telegram_report_grace_minutes: 20
 telegram_report_state_file: data/telegram_report_state.json
+<<<<<<< HEAD
+=======
+=======
+>>>>>>> f17e6a59f11b4c55f7e0c722244e8621d106d9dc
+>>>>>>> origin/main

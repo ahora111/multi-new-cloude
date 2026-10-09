@@ -1,7 +1,14 @@
 """Strict config loading. Unknown keys are ERRORS so no setting can be silently ignored."""
 from __future__ import annotations
 import os
+<<<<<<< HEAD
 import re
+=======
+<<<<<<< HEAD
+import re
+=======
+>>>>>>> f17e6a59f11b4c55f7e0c722244e8621d106d9dc
+>>>>>>> origin/main
 from dataclasses import dataclass, field, fields
 from pathlib import Path
 from typing import Optional
@@ -39,6 +46,10 @@ class Settings:
     telegram_show_links: bool = True
     telegram_max_messages: int = 60           # safety cap (Telegram allows ~20 posts/minute per group)
     telegram_max_message_len: int = 2800
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+>>>>>>> origin/main
     # ---- V2: shared hourly update cycle ----
     cycle_interval_minutes: int = 60         # default cadence of the shared update cycle (watch mode / scheduler)
     cycle_max_workers: int = 3               # sources fetched in parallel; each keeps its own rate limit
@@ -60,6 +71,11 @@ class Settings:
     def tz(self):
         from zoneinfo import ZoneInfo
         return ZoneInfo(self.timezone)
+<<<<<<< HEAD
+=======
+=======
+>>>>>>> f17e6a59f11b4c55f7e0c722244e8621d106d9dc
+>>>>>>> origin/main
 
 
 @dataclass
@@ -101,6 +117,10 @@ def load_settings(config_dir: str) -> Settings:
         raise ConfigError("settings.yaml: telegram_mode must be full|changes_only")
     if s.telegram_min_change_pct < 0:
         raise ConfigError("settings.yaml: telegram_min_change_pct must be >= 0")
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+>>>>>>> origin/main
     # ---- V2 validation ----
     if s.cycle_interval_minutes < 1:
         raise ConfigError("settings.yaml: cycle_interval_minutes must be >= 1")
@@ -119,6 +139,11 @@ def load_settings(config_dir: str) -> Settings:
             raise ConfigError(f"settings.yaml: telegram_report_times entries must be 'HH:MM' (00-23:00-59), got {t!r}")
     if s.telegram_report_grace_minutes < 0:
         raise ConfigError("settings.yaml: telegram_report_grace_minutes must be >= 0")
+<<<<<<< HEAD
+=======
+=======
+>>>>>>> f17e6a59f11b4c55f7e0c722244e8621d106d9dc
+>>>>>>> origin/main
     return s
 
 
