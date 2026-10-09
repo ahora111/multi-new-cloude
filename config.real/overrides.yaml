@@ -1,3 +1,7 @@
 # Manual corrections always beat the algorithm.
-force_match: []      # - {source: shop_a, source_offer_id: "a99", watch_id: iphone17-256}
-force_split: []      # - {source: shop_b, source_offer_id: "b7"}
+force_match: []      # - {source: hamrahtel, source_offer_id: "<offer id>", watch_id: iphone17-256-cha}
+force_split: []      # - {source: eways, source_offer_id: "<offer id>"}
+# "blue", "light blue" (آبی / آبی روشن) are already ONE colour globally (data/dictionaries.yaml).
+# Use color_merge only for a special case of one product, e.g. two names of the same colour of ONE phone:
+color_merge: []
+#  - {watch_id: some-product-id, colors: ["sea green", "green"], as: green}

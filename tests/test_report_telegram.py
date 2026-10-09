@@ -48,3 +48,23 @@ def test_dotenv_loader_does_not_override_existing_env(tmp_path, monkeypatch):
         assert os.environ["A_NEW"] == "1" and os.environ["A_KEEP"] == "from-env" and "EMPTY" not in os.environ
     finally:
         os.environ.pop("A_NEW", None)
+
+
+def test_telegram_variant_line_shows_all_valid_sources():
+    from pricecompare.report import _line
+
+    v = {
+        "variant": "green",
+        "winner": {"source": "farnaa", "price_toman": 345499000, "offer_id": "f1", "url": ""},
+        "runner_up": {"source": "eways", "price_toman": 345500000, "offer_id": "e1", "url": ""},
+        "offers": [
+            {"source": "farnaa", "price_toman": 345499000, "offer_id": "f1", "valid": True, "suspect": False},
+            {"source": "eways", "price_toman": 345500000, "offer_id": "e1", "valid": True, "suspect": False},
+            {"source": "hamrahtel", "price_toman": 345990000, "offer_id": "h1", "valid": True, "suspect": False},
+        ],
+        "single_source": False,
+        "needs_review": False,
+        "warnings": [],
+    }
+    line = _line(v, "k", None, None, False, set())
+    assert line == "🔹 green: 🏆 farnaa 345,499,000 | eways 345,500,000 | hamrahtel 345,990,000"

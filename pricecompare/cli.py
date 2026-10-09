@@ -3,6 +3,7 @@ import argparse
 import json
 import logging
 import os
+import re
 import sys
 from pathlib import Path
 from .runner import run, EXIT_OK
@@ -26,16 +27,114 @@ def load_dotenv(path=".env") -> int:
     return n
 
 
-def _print_summary(res):
+def _print_summary(res, show_offers=0, print_report=False):
     s = res.summary
     if not s:
         return
     keys = ["sources_ok", "sources_failed", "sources_degraded", "offers_total", "products_total",
-            "products_found", "products_not_found", "review_items", "suspect_offers", "needs_review_variants"]
+            "products_found", "products_discovered", "products_not_found", "review_items", "suspect_offers", "needs_review_variants"]
     print("\n".join(f"{k}: {s[k]}" for k in keys if k in s))
     for st in s.get("sources", []):
-        print(f"  - {st['name']}: {st['status']} ({st['count']} offers, {st['seconds']}s)" +
-              (f" — {st['error']}" if st.get("error") else ""))
+        cat = f", catalog={st['catalog_count']}" if "catalog_count" in st else ""
+        print(f"  - {st['name']}: {st['status']} ({st['count']} relevant offers{cat}, {st['seconds']}s)" +
+              (f" — {st['error']}" if st.get("error") else "") + (f" [{st['note']}]" if st.get("note") else ""))
+    if "telegram" in s:
+        print(f"telegram: {s['telegram']}")
+    if res.doc:
+        print("\nresults:")
+        for p in res.doc["products"]:
+            if p["status"] == "not_found":
+                print(f"  ✗ {p['id']}: not found in any source")
+                continue
+            for v in p["variants"]:
+                w = v["winner"]
+                print(f"  {'✓' if w else '✗'} {p['id']} [{v['variant']}]: " +
+                      (f"{w['source']} {w['price_toman']:,.0f}" if w else v["why"]) +
+                      ("  ⚠ review" if v["needs_review"] else ""))
+    if res.match_report:
+        from collections import Counter
+        st = Counter(r["status"] for r in res.match_report)
+        print("\nmatching: " + " | ".join(f"{k}={v}" for k, v in sorted(st.items())))
+        why = Counter(re.sub(r"\(.*?\)|[0-9.]+", "", re.sub(r"^nearest=\S+:\s*", "", r["reasons"][0])).strip()[:60]
+                      for r in res.match_report if r["status"] == "NO_MATCH" and r["reasons"])
+        if why:
+            print("top rejection reasons: " + "; ".join(f"{k} ×{n}" for k, n in why.most_common(5)))
+    if show_offers and res.offers:
+        from .matcher import best_result
+        print(f"\nsample offers per source (closest to your watchlist first, {show_offers} each):")
+        for src in sorted({o.source for o in res.offers}):
+            rows = [(best_result(o, res.watchlist, res.watch_attrs, res.settings), o) for o in res.offers if o.source == src]
+            rows.sort(key=lambda ro: ({"AUTO_MATCH": 2, "REVIEW": 1, "NO_MATCH": 0}[ro[0].status],
+                                       len(set(res.watch_attrs[ro[0].watch_id].core) & set(ro[1].model_core)), ro[0].score), reverse=True)
+            print(f"--- {src}")
+            for r_, o in rows[:show_offers]:
+                price_text = f"{int(o.price_toman):,}" if o.price_toman is not None else "?"
+                print(f"  {o.raw_title[:70]!r} price={price_text} | brand={o.brand or '?'} core={' '.join(o.model_core)} "
+                      f"tiers={o.tiers} {o.storage_gb}GB ram={o.ram_gb} color={o.color or '?'}\n"
+                      f"      -> {r_.watch_id}: {r_.status} ({'; '.join(r_.reasons)})")
+    if show_offers and res.doc and res.catalog_titles:
+        from .extract import Extractor
+        from .runner import closest_catalog_titles
+        ex = Extractor(res.settings.dictionaries_file)
+        missing = [p["id"] for p in res.doc["products"] if p["status"] != "found"]
+        by_id = {w.id: w for w in res.watchlist}
+        if missing:
+            print("\nclosest catalog titles for products that were not priced:")
+        for pid in missing:
+            for src, titles in res.catalog_titles.items():
+                near = closest_catalog_titles(by_id[pid], res.watch_attrs[pid], titles, ex)
+                print(f"  {pid} @ {src}: " + (" | ".join(t[:70] for t in near) if near else "(nothing similar in this catalog)"))
+    if print_report and res.doc:
+        from .report import build_markdown
+        print("\n" + build_markdown(res.doc))
+
+
+def _watch(a) -> int:
+    """V2 shared hourly cycle: fetch ALL enabled sources, compare, alert, sleep, repeat.
+    The run lock makes overlapping cycles impossible, so history/alerts never duplicate."""
+    from .config import load_settings, ConfigError
+    import time as _t
+    try:
+        settings = load_settings(a.config_dir)
+    except ConfigError as exc:
+        print(f"config error: {exc}", file=sys.stderr)
+        return 4
+    interval = max(1, settings.cycle_interval_minutes) * 60
+    n = 0
+    while True:
+        n += 1
+        started = _t.monotonic()
+        print(f"=== cycle {n} start ===", flush=True)
+        res = run(a.config_dir, a.output_dir if hasattr(a, "output_dir") else None, a.dry_run, base_dir=a.base_dir)
+        _print_summary(res)
+        if a.cycles and n >= a.cycles:
+            return res.exit_code
+        sleep_for = max(5.0, interval - (_t.monotonic() - started))
+        print(f"=== cycle {n} done (exit {res.exit_code}); next cycle in {sleep_for / 60:.1f} min ===", flush=True)
+        _t.sleep(sleep_for)
+
+
+def _delivery(a) -> int:
+    from datetime import datetime, timezone
+    from pathlib import Path
+    from .config import load_settings, load_sources, ConfigError
+    from .delivery import load_schedules, estimate
+    try:
+        settings = load_settings(a.config_dir)
+        srcs = load_sources(a.config_dir)
+    except ConfigError as exc:
+        print(f"config error: {exc}", file=sys.stderr)
+        return 4
+    now = datetime.now(timezone.utc)
+    schedules = load_schedules(Path(a.config_dir) / "delivery.yaml", settings.timezone)
+    print(f"زمان محلی: {now.astimezone(settings.tz()).strftime('%Y-%m-%d %H:%M')} ({settings.timezone})")
+    for c in srcs:
+        if not c.enabled:
+            print(f"  - {c.name}: غیرفعال")
+            continue
+        e = estimate(schedules.get(c.name), now, c.name)
+        print(f"  - {c.name}: {e.label}" + ("" if e.status != "ok" else f" | {e.shipping_label}"))
+    return 0
 
 
 def main(argv=None) -> int:
@@ -49,7 +148,18 @@ def main(argv=None) -> int:
     r.add_argument("--only-source")
     r.add_argument("--require-all-sources", action="store_true")
     r.add_argument("--output-dir")
+    r.add_argument("--no-telegram", action="store_true", help="never send Telegram messages in this run")
+    r.add_argument("--show-offers", type=int, default=0, metavar="N", help="print N sample offers per source with how they matched")
+    r.add_argument("--print-report", action="store_true", help="print the Persian report to the console/log")
+    w = sub.add_parser("watch", help="run the shared update cycle every cycle_interval_minutes (default: hourly)")
+    w.add_argument("--cycles", type=int, default=0, help="number of cycles (0 = run forever)")
+    w.add_argument("--dry-run", action="store_true")
+    d = sub.add_parser("delivery", help="show each source's order cut-off and estimated delivery to Qazvin (now)")
     sub.add_parser("check-sources", help="fetch every source and report health")
+    d = sub.add_parser("debug-hamrahtel", help="print what Hamrahtel really renders (to fix the parser)")
+    d.add_argument("--category", default="mobile")
+    d.add_argument("--lines", type=int, default=120)
+    d.add_argument("--grep", default="", help="also show the lines around every line containing this text")
     m = sub.add_parser("match-report", help="show how offers were matched/rejected in the last run")
     m.add_argument("--status", choices=["AUTO_MATCH", "REVIEW", "NO_MATCH", "FORCED_SPLIT"])
     m.add_argument("--output-dir", default=None)
@@ -61,11 +171,20 @@ def main(argv=None) -> int:
     logging.basicConfig(level=a.log_level.upper(), format="%(asctime)s | %(levelname)s | %(name)s | %(message)s")
 
     if a.cmd == "run":
-        res = run(a.config_dir, a.output_dir, a.dry_run, a.only_source, a.require_all_sources, a.base_dir)
-        _print_summary(res)
+        res = run(a.config_dir, a.output_dir, a.dry_run, a.only_source, a.require_all_sources, a.base_dir,
+                  send_telegram=not a.no_telegram)
+        _print_summary(res, a.show_offers, a.print_report)
         if res.exit_code != EXIT_OK:
             print(res.message, file=sys.stderr)
         return res.exit_code
+    if a.cmd == "watch":
+        return _watch(a)
+    if a.cmd == "delivery":
+        return _delivery(a)
+    if a.cmd == "debug-hamrahtel":
+        from .sources.hamrahtel import dump_page
+        print(dump_page(a.category, a.lines, grep=a.grep))
+        return 0
     if a.cmd == "check-sources":
         res = run(a.config_dir, dry_run=True, base_dir=a.base_dir)
         _print_summary(res)

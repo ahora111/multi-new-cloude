@@ -1,7 +1,7 @@
 import logging
 import re
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import List, Tuple
 from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeout
 
@@ -29,6 +29,7 @@ class Product:
     model: str
     price: str
     color: str = ''
+    stock: str = 'in_stock'      # pricecompare: 'out_of_stock' when the page marks the variant unavailable
 
 
 PERSIAN_DIGITS = str.maketrans('۰۱۲۳۴۵۶۷۸۹', '0123456789')
@@ -201,40 +202,75 @@ def extract_network_products(responses) -> List[Product]:
     return dedupe_products(products)
 
 
-def extract_body_text_fallback(page) -> List[Product]:
-    """Last-resort parser for Hamrahtel DOM changes.
+BUTTON = 'افزودن'                                   # the "add to cart" text that closes every colour/price row
+UNAVAILABLE = ('ناموجود', 'اتمام موجودی', 'موجود نیست')
 
-    The site has changed product-card class names more than once. If no known
-    selector is present, parse the rendered body text around numeric price
-    lines instead of returning zero products.
+
+def _split_title(title: str):
+    parts = title.split()
+    brand = parts[0] if parts else ''
+    if brand not in VALID_BRANDS:
+        brand = ''
+    return brand, (title if not brand else ' '.join(parts[1:]))
+
+
+def _looks_like_title(x: str) -> bool:
+    """Titles carry Latin letters AND digits and several words ('Galaxy A17 128GB RAM 4GB Vietnam').
+    Section headers ('سامسونگ', 'شیائومی - xiaomi', 'اپل Apple'), colours ('Black Titanium') and badges ('%3') do not."""
+    return bool(re.search(r'[A-Za-z]', x)) and bool(re.search(r'\d', x)) and len(x.split()) >= 2
+
+
+def parse_body_lines(raw_lines: List[str]) -> List[Product]:
+    """State machine for the rendered Hamrahtel list (layout verified from a real page dump):
+
+        <brand header>            e.g. سامسونگ            (ignored)
+        <title>                   e.g. Galaxy A17 128GB RAM 4GB Vietnam
+          <colour> <price> [<old price> <%discount>] افزودن      <- one row per colour, repeated
+          <colour> <price> افزودن
+
+    Every price belongs to the LAST title seen and to the colour line directly before it. The first price of a row
+    is the current (discounted) price; any further price/percent lines of that row are ignored. The 'افزودن' button
+    closes the row. (Earlier versions attached prices of other cards to the wrong title, and treated the button text
+    and unknown colour names such as 'لیمویی' as product titles.)
     """
+    products: List[Product] = []
+    title, color, emitted = '', '', False
+    for x in raw_lines:
+        if x == BUTTON:
+            color, emitted = '', False
+            continue
+        if any(x.startswith(u) for u in UNAVAILABLE):
+            if products and emitted:
+                products[-1] = replace(products[-1], stock='out_of_stock')
+            continue
+        if is_price(x):
+            if title and not emitted:
+                brand, model = _split_title(title)
+                products.append(Product(brand, model, x, color))
+                emitted = True
+            continue
+        if _looks_like_title(x):
+            title, color, emitted = x, '', False
+            continue
+        if x == 'مشخصات کالا' or re.search(r'[\d%]', x):
+            continue                                # spec header / badges like '%3'
+        if emitted:                                 # a new colour label without a closing button: new row
+            emitted = False
+        color = x                                   # raw label kept (unknown colours such as 'لیمویی' survive)
+    return dedupe_products(products)
+
+
+def extract_body_text_fallback(page) -> List[Product]:
+    """Last-resort parser for Hamrahtel DOM changes (renders body text, pairs prices with titles)."""
     try:
-        # IMPORTANT: do not call clean_text() on the complete body before
-        # splitlines(). clean_text() intentionally collapses whitespace,
-        # which would turn the whole page into one giant line and make the
-        # price/title parser unable to identify individual products.
+        # IMPORTANT: do not call clean_text() on the complete body before splitlines(): it collapses whitespace.
         body = page.locator("body").inner_text(timeout=10000)
     except Exception:
         return []
     if not body:
         return []
-    raw_lines = []
-    for raw_line in body.splitlines():
-        line = clean_text(raw_line)
-        if line:
-            raw_lines.append(line)
-    products = []
-    # Build small windows around every price line. parse_card_variants handles
-    # color -> price pairing and brand/model extraction.
-    for i, line in enumerate(raw_lines):
-        if not is_price(line):
-            continue
-        start = max(0, i - 12)
-        end = min(len(raw_lines), i + 3)
-        variants = parse_card_variants(raw_lines[start:end])
-        if variants:
-            products.extend(variants)
-    return dedupe_products(products)
+    raw_lines = [c for c in (clean_text(x) for x in body.splitlines()) if c]
+    return parse_body_lines(raw_lines)
 
 
 def extract_legacy(page, skip_items: int) -> List[Product]:

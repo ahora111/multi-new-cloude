@@ -1,0 +1,74 @@
+{
+  "_note": "نمونه‌ی آزمایشی با fixtures — داده واقعی نیست",
+  "cycle": {
+    "started_at": "2026-10-09T12:20:02.777994+00:00",
+    "finished_at": "2026-10-09T12:20:04.145563+00:00",
+    "interval_minutes": 60,
+    "timezone": "Asia/Tehran",
+    "parallel": true,
+    "workers": 3
+  },
+  "sources": [
+    {
+      "name": "shop_a",
+      "status": "ok",
+      "status_fa": "موفق",
+      "count": 10,
+      "fetched_at": "2026-10-09T12:20:02.780216+00:00"
+    },
+    {
+      "name": "shop_b",
+      "status": "ok",
+      "status_fa": "موفق",
+      "count": 7,
+      "fetched_at": "2026-10-09T12:20:02.789357+00:00"
+    },
+    {
+      "name": "shop_c",
+      "status": "ok",
+      "status_fa": "موفق",
+      "count": 6,
+      "fetched_at": "2026-10-09T12:20:02.790015+00:00"
+    },
+    {
+      "name": "farnaa",
+      "status": "ok",
+      "status_fa": "موفق",
+      "count": 422,
+      "fetched_at": "2026-10-09T12:20:03.666756+00:00"
+    },
+    {
+      "name": "exontel",
+      "status": "ok",
+      "status_fa": "موفق",
+      "count": 5,
+      "fetched_at": "2026-10-09T12:20:02.803933+00:00"
+    },
+    {
+      "name": "kasrapars",
+      "status": "ok",
+      "status_fa": "موفق",
+      "count": 3,
+      "fetched_at": "2026-10-09T12:20:02.800927+00:00"
+    }
+  ],
+  "summary": {
+    "sources_ok": 6,
+    "sources_failed": 0,
+    "sources_degraded": 0,
+    "sources_stale": 0,
+    "sources_cached": 0,
+    "offers_total": 453,
+    "products_total": 5,
+    "products_discovered": 0,
+    "products_found": 4,
+    "products_not_found": 1,
+    "products_no_valid_price": 0,
+    "review_items": 0,
+    "suspect_offers": 2,
+    "needs_review_variants": 0,
+    "price_changes_total": 16,
+    "price_alerts_total": 1,
+    "telegram": "disabled (settings: telegram_enabled=false)"
+  }
+}

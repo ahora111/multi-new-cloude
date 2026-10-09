@@ -94,3 +94,14 @@ def test_scale_check_detects_ten_x_gap():
     warns = scale_check([p], Settings())
     assert warns and "ریال/تومان" in warns[0]
     assert all(v["needs_review"] for v in p["variants"])
+
+
+def test_ram_splits_variants_only_when_two_known_values_differ():
+    w = WatchItem(id="w", brand="x", model="m")
+    a, b, c = off("a", 100), off("b", 90), off("c", 80)
+    a.ram_gb, b.ram_gb = 4, 6                                      # really different products
+    p = build_product(w, [(a, None), (b, None)], {}, Settings(), NOW, set())
+    assert sorted(v["variant"] for v in p["variants"]) == ["black / RAM 4GB", "black / RAM 6GB"]
+    a.ram_gb, b.ram_gb, c.ram_gb = 8, None, None                   # one shop states RAM, others omit it
+    p = build_product(w, [(a, None), (b, None), (c, None)], {}, Settings(), NOW, set())
+    assert [v["variant"] for v in p["variants"]] == ["black"] and p["variants"][0]["winner"]["price_toman"] == 80

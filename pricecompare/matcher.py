@@ -95,6 +95,9 @@ def assign(offers, watchlist, watch_attrs_by_id, settings, overrides):
             continue
         results = sorted((evaluate(off, w, watch_attrs_by_id[w.id], settings) for w in watchlist),
                          key=lambda r: (-{AUTO: 2, REVIEW: 1, NO_MATCH: 0}[r.status], -r.score))
+        if not results:                                   # empty explicit watchlist (discovery-only mode)
+            report.append(_row(off, None, NO_MATCH, 0, ["no explicit watchlist entry"]))
+            continue
         best = results[0]
         if best.status == AUTO and len(results) > 1 and results[1].status == AUTO and results[1].score == best.score:
             best = MatchResult(REVIEW, best.score, best.watch_id,
@@ -119,3 +122,14 @@ def assign(offers, watchlist, watch_attrs_by_id, settings, overrides):
 def _row(off, watch_id, status, score, reasons):
     return {"source": off.source, "offer_id": off.source_offer_id, "title": off.raw_title,
             "watch_id": watch_id, "status": status, "score": score, "reasons": reasons}
+
+
+def best_result(off, watchlist, watch_attrs_by_id, settings):
+    """Most relevant watch item for an offer (used by diagnostics): AUTO/REVIEW first, else the closest miss."""
+    results = [evaluate(off, w, watch_attrs_by_id[w.id], settings) for w in watchlist]
+
+    def key(r):
+        wc = set(watch_attrs_by_id[r.watch_id].core)
+        return ({AUTO: 2, REVIEW: 1, NO_MATCH: 0}[r.status], not r.reasons[0].startswith("brand differs"),
+                len(wc & set(off.model_core)), r.score)
+    return max(results, key=key)

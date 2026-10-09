@@ -4,13 +4,14 @@ from datetime import datetime, timezone
 from itertools import combinations
 from statistics import median
 from .models import IN_STOCK
+from .canonical import product_key_from_watch, variant_key as canonical_variant_key
 
 
-def variant_parts(off, watch) -> dict:
+def variant_parts(off, watch, include=frozenset()) -> dict:
     parts = {"color": off.color}
-    if watch.storage_gb is None:
+    if "storage_gb" in include:
         parts["storage_gb"] = off.storage_gb
-    if watch.ram_gb is None:
+    if "ram_gb" in include:
         parts["ram_gb"] = off.ram_gb
     # region / activation are NOT part of the key: many shops omit them, which would split one
     # product into fake variants. Mixed known values are flagged instead (see build_product).
@@ -49,9 +50,10 @@ def _num(v):
 
 def _offer_dict(off, reason, suspect):
     return {"source": off.source, "offer_id": off.source_offer_id, "title": off.raw_title,
-            "color": off.color, "price_raw": _num(off.price_raw), "currency_unit_raw": off.currency_unit_raw,
+            "raw_color": off.raw_color, "canonical_color": off.color, "color": off.color, "price_raw": _num(off.price_raw), "currency_unit_raw": off.currency_unit_raw,
             "price_toman": _num(off.price_toman), "stock": off.stock, "url": off.url,
-            "valid": reason is None, "excluded_reason": reason, "suspect": suspect}
+            "valid": reason is None, "excluded_reason": reason, "suspect": suspect,
+            "fetched_at": off.fetched_at or ""}
 
 
 def _pick(o):
@@ -103,14 +105,84 @@ def choose_variant(offers, priorities, settings, now, degraded, max_price=None):
     return res, win
 
 
-def build_product(watch, matched, priorities, settings, now, degraded):
+REGION_LABEL = {"cha": "CH/A", "singapore": "ZA/A", "usa_apple": "LL/A", "uae_apple": "AE/A", "japan": "J/A", "uk": "B/A",
+                "india_apple": "HN/A", "korea": "KH/A", "vietnam": "Vietnam", "india": "India", "uae": "UAE",
+                "global": "Global", "eu": "EU", "usa": "USA", "china": "China"}
+
+
+BRAND_PRETTY = {"apple": "Apple", "samsung": "Samsung", "xiaomi": "Xiaomi", "google": "Google", "nokia": "Nokia",
+                "honor": "Honor", "tecno": "Tecno", "infinix": "Infinix", "huawei": "Huawei", "oneplus": "OnePlus",
+                "motorola": "Motorola", "sony": "Sony", "realme": "Realme", "vivo": "Vivo", "oppo": "Oppo",
+                "asus": "Asus", "lenovo": "Lenovo", "other": ""}
+
+
+def display_title(w) -> str:
+    """ONE canonical display title per exact model+capacity (V2 §8). All colours of the same
+    product are reported under this single title, no matter what each shop calls it."""
+    brand = BRAND_PRETTY.get(w.brand) or (w.brand.replace("_", " ").title() if w.brand else "")
+    return " ".join(x for x in (brand, product_label(w)) if x and x != "other")
+
+
+def reference_price(p) -> float | None:
+    """V2 §9: the product's reference price = the LOWEST valid & fresh winner price of its colours."""
+    vals = [v["winner"]["price_toman"] for v in p.get("variants", [])
+            if v.get("winner") and v["winner"].get("price_toman")]
+    return min(vals) if vals else None
+
+
+def variant_lowest_valid(v) -> float | None:
+    vals = [o["price_toman"] for o in v.get("offers", []) if o.get("valid") and o.get("price_toman")]
+    return min(vals) if vals else None
+
+
+def sort_products(products: list) -> list:
+    """V2 §9: every category sorted MOST EXPENSIVE -> CHEAPEST by reference price.
+    Products without any valid price go to the end (own section). Ties keep a stable,
+    deterministic order by canonical title. The SAME order is used by JSON, CSV, Markdown
+    and Telegram because every output iterates the sorted list."""
+    def sort_key(p):
+        label = (p.get("title") or p.get("label") or p.get("model") or p.get("id") or "").lower()
+        ref = reference_price(p)
+        return (0, -ref, label) if ref is not None else (1, 0, label)
+    return sorted(products, key=sort_key)
+
+
+def sort_variants(p) -> None:
+    """Colours of one product: most expensive first (same rule), no-price colours last, stable."""
+    def sort_key(v):
+        low = variant_lowest_valid(v)
+        return (low is None, -(low or 0), str(v.get("variant")))
+    p["variants"] = sorted(p.get("variants", []), key=sort_key)
+
+
+def product_label(w) -> str:
+    parts = [w.model]
+    if w.storage_gb:
+        parts.append(f"{w.storage_gb}GB")
+    if w.ram_gb and w.brand != "apple":
+        parts.append(f"RAM {w.ram_gb}GB")
+    if w.region:
+        parts.append(REGION_LABEL.get(w.region, w.region))
+    if w.condition:
+        parts.append({"nonactive": "Non Active", "active": "Active"}.get(w.condition, w.condition))
+    return " ".join(parts)
+
+
+def build_product(watch, matched, priorities, settings, now, degraded, attrs=None):
     """matched: list[(offer, MatchResult)] for this watch item."""
-    groups, ignored = {}, []
+    groups, ignored, kept = {}, [], []
     for off, _ in matched:
         if watch.colors != ["any"] and off.color not in watch.colors:
             ignored.append({"source": off.source, "offer_id": off.source_offer_id, "reason": "رنگ درخواست‌نشده"})
             continue
-        parts = variant_parts(off, watch)
+        kept.append(off)
+
+    # storage / RAM split variants only when the watchlist leaves them open AND offers really carry >= 2 different
+    # known values. (One shop stating RAM 8 while another omits it must NOT create two fake variants.)
+    include = frozenset(a for a in ("storage_gb", "ram_gb")
+                        if getattr(watch, a) is None and len({getattr(o, a) for o in kept if getattr(o, a) is not None}) >= 2)
+    for off in kept:
+        parts = variant_parts(off, watch, include)
         groups.setdefault(tuple(parts.items()), []).append(off)
     variants = []
     for key, offs in sorted(groups.items(), key=lambda kv: str(kv[0])):
@@ -129,7 +201,14 @@ def build_product(watch, matched, priorities, settings, now, degraded):
         status = "found"
     else:
         status = "no_valid_price"
-    return {"id": watch.id, "brand": watch.brand, "model": watch.model, "storage_gb": watch.storage_gb,
+    canonical_id = product_key_from_watch(watch, attrs) if kept else watch.id
+    for v in variants:
+        color = v.get("attributes", {}).get("color") or "unknown"
+        v["canonical_variant_key"] = f"{canonical_id}_{color}"
+    return {"id": watch.id, "canonical_product_key": canonical_id, "label": product_label(watch),
+            "title": display_title(watch),
+            "brand": watch.brand, "model": watch.model,
+            "storage_gb": watch.storage_gb,
             "ram_gb": watch.ram_gb, "region": watch.region, "condition": watch.condition,
             "status": status, "variants": variants, "ignored_offers": ignored}
 

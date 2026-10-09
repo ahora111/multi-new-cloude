@@ -12,6 +12,12 @@ _DIGITS = str.maketrans("۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩", "01234567890
 _CHARS = str.maketrans({"ي": "ی", "ى": "ی", "ك": "ک", "ۀ": "ه", "ة": "ه", "ؤ": "و", "أ": "ا", "إ": "ا"})
 _INVIS = dict.fromkeys(map(ord, "\u200c\u200d\u200e\u200f\u202a\u202b\u202c\u00a0"), " ")
 _FA_RANGE = "\u0600-\u06FF"
+# Phone-RAM sizes (GB). A GB'd number in this range is RAM, not storage.
+RAM_SIZES = {1, 2, 3, 4, 6, 8, 12, 16, 18, 24, 32}
+# Storage-class numbers that shops also write WITHOUT a unit, e.g.
+# KasraPars "iPhone 17 256 8GB CH/A Non Active" (= 256GB storage, 8GB RAM).
+# None of these collide with phone model numbers (iPhone 8/12/16 stay intact).
+_BARE_STORAGE_RX = r"(?<!\w)(1024|512|256|128|64|32)(?!\w)"
 
 
 @dataclass
@@ -54,7 +60,16 @@ class Extractor:
         self.drop_brand = set(d["brand_drop_words"])
         self.phrases = sorted(d.get("phrase_map", {}).items(), key=lambda kv: -len(kv[0]))
         self.tokmap = sorted(d.get("token_map", {}).items(), key=lambda kv: -len(kv[0]))
-        self.brand_alias = {a: b for b, al in d["brands"].items() for a in al}
+        # One central, source-independent brand alias dictionary.  Keep the
+        # legacy `brands` key as a backwards-compatible fallback for older
+        # custom dictionaries.
+        brand_rows = d.get("brand_aliases") or d.get("brands") or {}
+        raw_brand_alias = {str(a): b for b, al in brand_rows.items() for a in [b] + list(al)}
+        # normalize_text itself consults brand_alias, so initialize the raw
+        # map first and canonicalize its keys afterwards.
+        self.brand_alias = raw_brand_alias
+        self.brand_alias = {self._normalize_base(a): b for a, b in raw_brand_alias.items()}
+        self.brand_alias = {k: v for k, v in self.brand_alias.items() if k}
         self._colors = self._table(d["colors"])
         self._regions = self._table(d["regions"])
 
@@ -66,6 +81,15 @@ class Extractor:
         return sorted(rows, key=lambda r: -len(r[0]))
 
     # ---------- normalisation ----------
+    def _normalize_base(self, s) -> str:
+        s = unicodedata.normalize("NFKC", str(s or ""))
+        s = s.translate(_DIGITS).translate(_CHARS).lower().translate(_INVIS)
+        for fa, en in self.phrases:
+            s = s.replace(fa, f" {en} ")
+        for fa, en in self.tokmap:
+            s = re.sub(rf"(?<!\w){re.escape(fa)}(?!\w)", en, s)
+        return re.sub(r"\s+", " ", s).strip()
+
     def normalize_text(self, s) -> str:
         s = unicodedata.normalize("NFKC", str(s or ""))
         s = s.translate(_DIGITS).translate(_CHARS).lower().translate(_INVIS)
@@ -74,8 +98,21 @@ class Extractor:
             s = s.replace(fa, f" {en} ")
         for fa, en in self.tokmap:
             s = re.sub(rf"(?<!\w){re.escape(fa)}(?!\w)", en, s)
-        s = re.sub(r"(?<!\w)ch\s*[/\-.]?\s*a(?!\w)", "cha", s)
-        s = re.sub(r"non[\s\-]*active", "nonactive", s)
+        # Canonicalize merchant-independent brand aliases from the central
+        # dictionary. Legacy model-family aliases such as Galaxy/iPhone/Redmi
+        # remain in the model core for backwards compatibility; all other
+        # aliases collapse to their canonical brand token.
+        keep_model_aliases = {"iphone", "galaxy", "redmi", "poco", "pixel", "moto", "xperia"}
+        for alias, canon in sorted(self.brand_alias.items(), key=lambda kv: -len(kv[0])):
+            if alias in keep_model_aliases or alias == canon:
+                continue
+            s = re.sub(rf"(?<!\w){re.escape(alias)}(?!\w)", canon, s)
+        # Apple sales-region codes: CH/A, ZA/A, LL/A, AE/A, HN/A, KH/A, J/A, B/A ...  ->  cha, zaa, lla ...
+        s = re.sub(r"(?<!\w)(ch|za|ll|ae|hn|kh|j|b)\s*[/\-.]?\s*a(?!\w)", lambda m: m.group(1) + "a", s)
+        # Activation aliases. Some sources emit malformed variants such as
+        # "Not Active" / "Non Active"; keep one canonical token for matching.
+        s = re.sub(r"\bnon[\s\-]*active\b", "nonactive", s)
+        s = re.sub(r"\bnot[\s\-]*active\b", "nonactive", s)
         s = re.sub(r"(?<!\w)(1|2|3|4|6|8|12|16|18|24)\s*/\s*(32|64|128|256|512|1024)(?![\d/])", r"ram \1 \2gb", s)
         s = re.sub(r"(?<=\w)\+", " plus ", s)
         s = re.sub(r"[()\[\]{}،؛:;,|_\\\"'«»!?*]+", " ", s)
@@ -86,6 +123,18 @@ class Extractor:
             if syn and re.search(rf"(?<!\w){re.escape(syn)}(?!\w)", s):
                 return canon, syn
         return "", ""
+
+    def canonical_brand(self, text) -> str:
+        """Resolve a brand from the central alias dictionary, independent of language.
+
+        Long/multi-word aliases are checked first so values such as
+        ``General Luxe`` are not split into unrelated tokens.
+        """
+        t = self.normalize_text(text)
+        for alias, canon in sorted(self.brand_alias.items(), key=lambda kv: -len(kv[0])):
+            if re.search(rf"(?<!\w){re.escape(alias)}(?!\w)", t):
+                return canon
+        return ""
 
     def color_of(self, text, explicit=False) -> str:
         t = self.normalize_text(text)
@@ -110,10 +159,21 @@ class Extractor:
         t = " " + self.normalize_text(title) + " "
         a = Attrs()
 
-        m = re.search(r"(?<!\w)(nonactive|active)(?!\w)", t)
-        if m:
-            a.condition = m.group(1)
-            t = t.replace(m.group(0), " ", 1)
+        # A few source titles contain a broken translation/SEO fragment between
+        # "Not" and the final "Active", e.g.
+        # "iPhone 17 Not شده Pro Max ... Active" or
+        # "iPhone 17 Not دوسیم و پارت نامبر ... Active".
+        # Treat the pair as the same non-active status, but remove only the
+        # status words so model/tier/storage/region tokens are preserved.
+        if re.search(r"(?<!\w)not(?!\w)", t) and re.search(r"(?<!\w)active(?!\w)", t):
+            t = re.sub(r"(?<!\w)not(?!\w)", " ", t, count=1)
+            t = re.sub(r"(?<!\w)active(?!\w)", " ", t, count=1)
+            a.condition = "nonactive"
+        else:
+            m = re.search(r"(?<!\w)(nonactive|active)(?!\w)", t)
+            if m:
+                a.condition = m.group(1)
+                t = t.replace(m.group(0), " ", 1)
         canon, syn = self._find(self._regions, t.strip())
         if canon:
             a.region = canon
@@ -129,32 +189,57 @@ class Extractor:
             t = t.replace(m.group(0), " ", 1)
         caps = list(re.finditer(r"(\d+(?:\.\d+)?)\s*(gb|tb)(?!\w)", t))
         if caps:
-            a.storage_gb = max(self._gb(c.group(1), c.group(2)) for c in caps)
+            values = [(self._gb(c.group(1), c.group(2)), c) for c in caps]
+            a.storage_gb = max(v for v, _ in values)
+            # Common cross-source shorthand: "8GB 256GB" means RAM 8GB +
+            # storage 256GB. Only infer RAM from an unambiguous phone-RAM
+            # range; never turn a second large storage capacity into RAM.
+            ram_candidates = [v for v, _ in values if v <= 32 and v in RAM_SIZES]
+            if len(values) >= 2 and len(ram_candidates) == 1:
+                a.ram_gb = ram_candidates[0]
             for c in reversed(caps):
                 t = t[:c.start()] + " " + t[c.end():]
+            # KasraPars-style shorthand "<storage> <ram>GB" (e.g. "iPhone 17
+            # 256 8GB", "iPhone 17 Pro Max 256 12GB"): the ONLY GB value is
+            # RAM-sized while the real storage stands bare (no unit). Swap
+            # the two instead of inventing an 8GB phone whose model name
+            # contains "256".
+            if len(values) == 1 and a.storage_gb in RAM_SIZES:
+                m = re.search(_BARE_STORAGE_RX, t)
+                if m:
+                    a.storage_gb, a.ram_gb = int(m.group(1)), a.storage_gb
+                    t = t[:m.start()] + " " + t[m.end():]
+        elif re.search(r"iphone|galaxy|redmi|poco|pixel|xperia|motorola|xiaomi|honor|tecno|infinix|nokia|vivo|oppo|realme|oneplus|asus|lenovo", t):
+            # A bare storage-class number with no GB/TB anywhere else
+            # (e.g. "iPhone 17 256") is the capacity, not part of the model.
+            m = re.search(_BARE_STORAGE_RX, t)
+            if m:
+                a.storage_gb = int(m.group(1))
+                t = t[:m.start()] + " " + t[m.end():]
 
         canon, syn = self._find(self._colors, t.strip())
         if canon:
             a.color = canon
             t = re.sub(rf"(?<!\w){re.escape(syn)}(?!\w)", " ", t)
 
-        brand_hint = self.normalize_text(raw_brand)
-        toks = t.split()
-        for tok in toks:
-            if tok in self.brand_alias:
-                a.brand = self.brand_alias[tok]
-                break
-        if not a.brand and brand_hint:
-            for tok in brand_hint.split():
-                if tok in self.brand_alias:
-                    a.brand = self.brand_alias[tok]
-                    break
-            else:
-                a.brand = brand_hint
+        # Persian attribute synonyms are consumed above (brand/token/phrase,
+        # color, region). Any Persian text left at this point is source-specific
+        # marketing/SEO noise. Remove it from the model identity so it can never
+        # create fake products such as "17 not دوسیم و پارت نامبر".
+        t = re.sub(rf"[{_FA_RANGE}]+", " ", t)
+
+        # Resolve brand before/after Persian cleanup from the same central alias
+        # dictionary. This prevents source language from changing identity.
+        a.brand = self.canonical_brand(title)
+        if not a.brand:
+            a.brand = self.canonical_brand(raw_brand)
+        if not a.brand:
+            brand_hint = self.normalize_text(raw_brand)
+            a.brand = brand_hint if brand_hint and not re.search(rf"[{_FA_RANGE}]", brand_hint) else ""
 
         core, tiers = [], []
         for tok in t.split():
-            tok = tok.strip("-./")
+            tok = tok.strip("-./+")   # "Single + Esim" must not leave a '+' token behind
             if not tok or tok in self.generic or tok in self.drop_brand:
                 continue
             if tok in self.tiers:

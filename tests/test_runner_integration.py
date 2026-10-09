@@ -51,7 +51,7 @@ def test_not_found_and_summary(tmp_path):
     _go(tmp_path)
     d = _doc(tmp_path)
     assert d["not_found"] == ["pixel-10-pro-256"] and d["schema_version"] == "1.0"
-    assert d["summary"]["products_found"] == 4 and d["summary"]["suspect_offers"] == 1
+    assert d["summary"]["products_found"] == 4 and d["summary"]["suspect_offers"] == 2
 
 
 def test_all_output_files_written_and_csv_is_clean(tmp_path):
@@ -60,7 +60,13 @@ def test_all_output_files_written_and_csv_is_clean(tmp_path):
     for f in ("output.json", "report.csv", "report.md", "run_summary.json", "matching_report.json"):
         assert (out / f).exists(), f
     rows = (out / "report.csv").read_text(encoding="utf-8").splitlines()
-    assert rows[0].lstrip("\ufeff").startswith("product_id,model,variant,winner_source") and len(rows) == 1 + 6
+    # 11 rows before the bare-storage fix: the farnaa "Redmi Note 14 4G ظرفیت 256 رم 8
+    # گیگابایت" offer parsed as storage=None + core "256" and was orphaned outside the
+    # watchlist product. It now joins redmi-note-14-256-8 as a colourless (out of stock)
+    # variant -> one extra no-winner row.
+    assert rows[0].lstrip("\ufeff").startswith("product_id,model,variant,winner_source") and len(rows) == 12
+    extra = [r for r in rows if r.startswith("redmi-note-14-256-8,Redmi Note 14 256GB RAM 8GB,بدون رنگ/مشخصه")]
+    assert len(extra) == 1 and ",1,0," in extra[0]      # farnaa offer present but out of stock -> no winner
     assert "🏆" in (out / "report.md").read_text(encoding="utf-8")
 
 
@@ -176,7 +182,9 @@ def test_overrides_force_match_and_force_split(tmp_path):
         "force_split": [{"source": "shop_c", "source_offer_id": "c1"}],
         "force_match": []}), encoding="utf-8")
     res = run(cfg, base_dir=base)
-    blue = next(v for v in res.doc["products"][0]["variants"] if v["variant"] == "blue")
+    # V2: products are sorted most-expensive-first, so look the product up by id (order-independent)
+    prod = next(p for p in res.doc["products"] if p["id"] == "iphone17-256")
+    blue = next(v for v in prod["variants"] if v["variant"] == "blue")
     assert all(o["source"] != "shop_c" for o in blue["offers"])
 
 
@@ -200,3 +208,43 @@ def test_cli_run_and_explain_and_match_report(tmp_path, capsys=None):
     assert main(["--config-dir", cfg, "--base-dir", base, "explain", "iphone17-256"]) == 0
     assert main(["--config-dir", cfg, "--base-dir", base, "explain", "nope"]) == 1
     assert main(["--config-dir", cfg, "--base-dir", base, "run", "--only-source", "zzz"]) == 4
+
+
+def test_closest_catalog_titles_helper():
+    from pricecompare.extract import Extractor
+    from pricecompare.models import WatchItem
+    from pricecompare.runner import closest_catalog_titles
+    ex = Extractor()
+    w = WatchItem(id="r", brand="xiaomi", model="Redmi Note 14")
+    near = closest_catalog_titles(w, ex.parse(w.model), ["Xiaomi Redmi Note 15 256GB", "Samsung Galaxy A17", "Redmi Note 14 Pro 128GB", "TV 55"], ex)
+    assert near[0] in ("Redmi Note 14 Pro 128GB",) and "Samsung Galaxy A17" not in near and "TV 55" not in near
+
+
+def test_show_offers_prints_closest_titles_for_missing_products(tmp_path, capsys=None):
+    import io, contextlib
+    cfg, base = make_project(tmp_path)
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        main(["--config-dir", cfg, "--base-dir", base, "run", "--dry-run", "--show-offers", "2"])
+    out = buf.getvalue()
+    assert "sample offers per source" in out and "closest catalog titles" in out and "pixel-10-pro-256 @" in out
+
+
+def test_color_merge_lets_differently_named_colours_compete(tmp_path):
+    import yaml as _y
+    wl = [{"id": "x", "brand": "apple", "model": "iPhone 17", "storage": 256}]
+    cfg, base = make_project(tmp_path, watchlist=wl)
+    v0 = {v["variant"]: v for v in run(cfg, base_dir=base).doc["products"][0]["variants"]}
+    assert set(v0) == {"blue", "black", "بدون رنگ/مشخصه"}
+    (tmp_path / "config" / "overrides.yaml").write_text(_y.safe_dump({"color_merge": [{"watch_id": "x", "colors": ["blue"], "as": "black"}]}), encoding="utf-8")
+    v1 = {v["variant"]: v for v in run(cfg, base_dir=base).doc["products"][0]["variants"]}
+    assert set(v1) == {"black", "بدون رنگ/مشخصه"}
+    assert len(v1["black"]["offers"]) == len(v0["black"]["offers"]) + len(v0["blue"]["offers"])
+    assert len(v1["بدون رنگ/مشخصه"]["offers"]) == len(v0["بدون رنگ/مشخصه"]["offers"])
+
+
+def test_color_merge_validation(tmp_path):
+    import yaml as _y
+    cfg, base = make_project(tmp_path)
+    (tmp_path / "config" / "overrides.yaml").write_text(_y.safe_dump({"color_merge": [{"watch_id": "x"}]}), encoding="utf-8")
+    assert run(cfg, base_dir=base).exit_code == 4

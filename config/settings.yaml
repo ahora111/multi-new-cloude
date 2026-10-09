@@ -12,3 +12,26 @@ cache_ttl_seconds: 300
 lock_file: data/run.lock
 telegram_enabled: false
 telegram_dry_run: true
+telegram_only_on_change: true
+telegram_min_change_pct: 0.5
+telegram_state_file: data/telegram_state.json
+telegram_group_by: brand
+telegram_mode: full
+telegram_show_links: true
+telegram_max_messages: 60
+
+# ---- V2: چرخه به‌روزرسانی مشترک، هشدار قیمت، زمان‌بندی تلگرام ----
+cycle_interval_minutes: 60          # فاصله پیش‌فرض چرخه مشترک (دقیقه)
+cycle_max_workers: 3                # تعداد منابعی که موازی استخراج می‌شوند
+timezone: Asia/Tehran               # مبنای همه‌ی محاسبات سفارش/تحویل/گزارش
+price_alert_drop_pct: 1.0           # آستانه هشدار کاهش قیمت هر فروشنده (درصد)
+price_alert_market_beat_pct: 0.5    # آستانه هشدار «بهترین قیمت بازار» (درصد زیرکردن کف بازار)
+vendor_price_compare_max_hours: 48  # سابقه قدیمی‌تر از این برای محاسبه درصد استفاده نمی‌شود
+source_state_file: data/source_state.json
+source_snapshots_dir: data/source_snapshots
+alerts_file: data/alerts.jsonl      # ثبت همه‌ی تغییرات قیمت حتی زیر حدنصاب تلگرام
+telegram_alerts_enabled: true       # هشدار فرصت خرید مستقل از گزارش کامل ارسال می‌شود
+telegram_alert_state_file: data/telegram_alert_state.json
+telegram_report_times: []           # مثال: ["09:00", "21:00"] به وقت تهران؛ خالی = هر چرخه
+telegram_report_grace_minutes: 20
+telegram_report_state_file: data/telegram_report_state.json
