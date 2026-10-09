@@ -39,6 +39,8 @@ class Settings:
     telegram_show_links: bool = True
     telegram_max_messages: int = 60           # safety cap (Telegram allows ~20 posts/minute per group)
     telegram_max_message_len: int = 2800
+    telegram_show_missing_sources: bool = False  # QUIET default: per-colour «قیمت دریافت نشد/منبع ناموفق» lists are NOT posted; full detail stays in output files (true = old verbose behaviour)
+    telegram_truncation_notice: bool = False     # QUIET default: no «N پیام دیگر ارسال نشد» post when the max_messages cap drops parts (true = announce)
     # ---- V2: shared hourly update cycle ----
     cycle_interval_minutes: int = 60         # default cadence of the shared update cycle (watch mode / scheduler)
     cycle_max_workers: int = 3               # sources fetched in parallel; each keeps its own rate limit

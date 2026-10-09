@@ -27,15 +27,19 @@ def split_message(text: str, limit: int) -> list:
     return chunks
 
 
-def send(token, chat_id, text, limit=2800, dry_run=True, session=None, sleep=time.sleep, max_messages=None):
-    """`text` may be one string (split by size, numbered) or a list of messages (each becomes >= 1 separate post)."""
+def send(token, chat_id, text, limit=2800, dry_run=True, session=None, sleep=time.sleep, max_messages=None,
+         truncation_notice=True):
+    """`text` may be one string (split by size, numbered) or a list of messages (each becomes >= 1 separate post).
+    truncation_notice=False silently drops the overflow instead of posting the «N پیام دیگر …» notice
+    (the complete report always stays in the output files either way)."""
     numbered = isinstance(text, str)
     parts = []
     for t in ([text] if numbered else list(text)):
         parts += split_message(t, limit)
     if max_messages and len(parts) > max_messages:
         dropped = len(parts) - max_messages + 1
-        parts = parts[:max_messages - 1] + [f"… {dropped} پیام دیگر به‌خاطر سقف telegram_max_messages ارسال نشد (گزارش کامل در فایل‌های خروجی)."]
+        parts = (parts[:max_messages - 1] + [f"… {dropped} پیام دیگر به‌خاطر سقف telegram_max_messages ارسال نشد (گزارش کامل در فایل‌های خروجی)."]
+                 if truncation_notice else parts[:max_messages])
     if dry_run:
         return parts
     s = session or requests.Session()

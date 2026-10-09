@@ -545,7 +545,8 @@ def _telegram_phase(settings, doc, products, current, alerts, run_at, now):
             msgs = report.build_alert_messages(to_send)
             log.info("telegram: sending %d alert message(s) ...", len(msgs))
             parts = telegram.send(tok, chat, msgs, settings.telegram_max_message_len,
-                                  dry_run=settings.telegram_dry_run, max_messages=settings.telegram_max_messages)
+                                  dry_run=settings.telegram_dry_run, max_messages=settings.telegram_max_messages,
+                                  truncation_notice=settings.telegram_truncation_notice)
             statuses.append(f"{len(parts)} alert message(s)" +
                             (" NOT sent (dry-run)" if settings.telegram_dry_run else " sent"))
             if not settings.telegram_dry_run:
@@ -556,10 +557,11 @@ def _telegram_phase(settings, doc, products, current, alerts, run_at, now):
         if full_allowed:
             msgs = report.build_telegram_messages(
                 doc, settings.telegram_group_by, changed_map if settings.telegram_mode == "changes_only" else None,
-                removed, settings.telegram_show_links)
+                removed, settings.telegram_show_links, settings.telegram_show_missing_sources)
             log.info("telegram: sending %d report message(s) ...", len(msgs))
             parts = telegram.send(tok, chat, msgs, settings.telegram_max_message_len,
-                                  dry_run=settings.telegram_dry_run, max_messages=settings.telegram_max_messages)
+                                  dry_run=settings.telegram_dry_run, max_messages=settings.telegram_max_messages,
+                                  truncation_notice=settings.telegram_truncation_notice)
             if settings.telegram_dry_run:
                 statuses.append(f"dry-run: {len(parts)} message(s) NOT sent (telegram_dry_run=true)")
             else:

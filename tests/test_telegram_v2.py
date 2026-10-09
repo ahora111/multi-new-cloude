@@ -41,12 +41,18 @@ def test_missing_colour_price_is_never_hidden(tmp_path):
     doc = _doc(tmp_path)
     p = next(p for p in doc["products"] if p["id"] == "iphone17-256")
     black = next(v for v in p["variants"] if v["variant"] == "black")
-    # farnaa carries the product but has no usable black price -> must be stated, not hidden
+    # farnaa carries the product but has no usable black price -> the DATA must state it, not hide it
     miss = {m["source"]: m["reason"] for m in black["incomplete_sources"]}
     assert "farnaa" in miss
-    msgs = "\n".join(report.build_telegram_messages(doc, "none"))
-    assert "farnaa: قیمت دریافت نشد" in msgs or "farnaa: منبع ناموفق" in msgs or \
-        any(f"farnaa: {r}" in msgs for r in miss.values())
+    # quiet channel default: the per-source «قیمت دریافت نشد» list is NOT posted to Telegram
+    # (the full per-offer detail stays in output.json / report.csv / report.md)
+    quiet = "\n".join(report.build_telegram_messages(doc, "none"))
+    assert "قیمت دریافت نشد" not in quiet and "منبع ناموفق" not in quiet
+    assert "مقایسه ناقص" not in quiet
+    # opt-in flag restores the verbose per-colour listing
+    verbose = "\n".join(report.build_telegram_messages(doc, "none", show_missing_sources=True))
+    assert "farnaa: قیمت دریافت نشد" in verbose or "farnaa: منبع ناموفق" in verbose or \
+        any(f"farnaa: {r}" in verbose for r in miss.values())
 
 
 def test_failed_source_marks_comparison_incomplete(tmp_path):
@@ -59,7 +65,7 @@ def test_failed_source_marks_comparison_incomplete(tmp_path):
     res = run(cfg2, base_dir=base2)
     p = next(p for p in res.doc["products"] if p["id"] == "iphone17-256")
     assert p["comparison_incomplete"] and any("shop_c" in r for r in p["incomplete_reasons"])
-    msgs = "\n".join(report.build_telegram_messages(res.doc, "none"))
+    msgs = "\n".join(report.build_telegram_messages(res.doc, "none", show_missing_sources=True))
     assert "مقایسه ناقص" in msgs
 
 
@@ -97,5 +103,10 @@ def test_long_report_is_never_silently_truncated(tmp_path):
     from pricecompare import telegram
     doc = _doc(tmp_path)
     msgs = report.build_telegram_messages(doc, "none")
-    parts = telegram.send("t", "c", msgs, limit=300, dry_run=True, max_messages=2)
-    assert len(parts) == 2 and "telegram_max_messages" in parts[-1]   # the cap is ANNOUNCED, not silent
+    # explicit opt-in: the cap is ANNOUNCED, not silent
+    parts = telegram.send("t", "c", msgs, limit=300, dry_run=True, max_messages=2, truncation_notice=True)
+    assert len(parts) == 2 and "telegram_max_messages" in parts[-1]
+    # quiet channel default (telegram_truncation_notice: false): overflow is dropped silently,
+    # no «N پیام دیگر …» post — the complete report stays in the output files
+    quiet_parts = telegram.send("t", "c", msgs, limit=300, dry_run=True, max_messages=2, truncation_notice=False)
+    assert len(quiet_parts) == 2 and "telegram_max_messages" not in quiet_parts[-1]

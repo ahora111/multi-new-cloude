@@ -245,12 +245,16 @@ def _line(v, key, changes, last_sent, show_links, noisy):
     return line
 
 
-def _v2_extra_lines(v) -> list:
-    """V2 per-colour lines: incomplete-comparison reasons, drop/opportunity alerts, fastest delivery."""
+def _v2_extra_lines(v, show_missing=False) -> list:
+    """V2 per-colour lines: drop/opportunity alerts, fastest delivery. The per-source
+    «قیمت دریافت نشد / منبع ناموفق» list is quiet by default (it made the channel noisy);
+    the full per-offer detail stays in output.json / report.csv / report.md and can be
+    re-enabled in Telegram with telegram_show_missing_sources: true."""
     out = []
-    miss = v.get("incomplete_sources") or []
-    if miss:
-        out.append("   ⚠️ " + " | ".join(f"{m['source']}: {m['reason']}" for m in miss))
+    if show_missing:
+        miss = v.get("incomplete_sources") or []
+        if miss:
+            out.append("   ⚠️ " + " | ".join(f"{m['source']}: {m['reason']}" for m in miss))
     for a in v.get("alerts") or []:
         al = _alert_line(a)
         if al:
@@ -267,10 +271,13 @@ def _v2_extra_lines(v) -> list:
 _UNKNOWN_LABEL = "زمان تحویل نامشخص"
 
 
-def build_telegram_messages(doc, group_by="brand", changes=None, removed=None, show_links=True) -> list:
+def build_telegram_messages(doc, group_by="brand", changes=None, removed=None, show_links=True,
+                            show_missing_sources=False) -> list:
     """Plain-text posts (Telegram shows Markdown symbols literally). V2 layout: ONE canonical title
     per product; EVERY colour of the product listed underneath it; every vendor's price beside each
     colour; drop/opportunity alerts beside their colour; fastest delivery to Qazvin per colour.
+    show_missing_sources=False (quiet default): sources without a price for a colour are NOT listed
+    in the post — a colour the user asked to hide silently stays in the file outputs.
     changes: None = full report; dict(key -> old price|None) = only those variants (with the old price)."""
     from . import history
     products = doc["products"]            # already sorted most-expensive -> cheapest by the pipeline
@@ -284,13 +291,13 @@ def build_telegram_messages(doc, group_by="brand", changes=None, removed=None, s
     for p in products:
         lines = []
         has_winner = any(v["winner"] for v in p["variants"])
-        if changes is None and has_winner and p.get("comparison_incomplete"):
+        if changes is None and has_winner and p.get("comparison_incomplete") and show_missing_sources:
             lines.append("⚠️ مقایسه ناقص — یک یا چند منبع در دسترس نبودند")
         for v in p["variants"]:
             if not v["winner"]:
-                # a single missing colour is shown transparently, but a product with NO valid
-                # price at all stays out of the periodic post (it has its own section in JSON/MD)
-                if changes is None and has_winner:
+                # quiet default: a colour with no valid price is skipped in the post (kept in the files);
+                # with show_missing_sources it is stated transparently instead of hidden
+                if changes is None and has_winner and show_missing_sources:
                     lines.append(f"{_color_prefix_swap('🔹 ' + (v['variant'] or '') + ':', v)} قیمت معتبر ندارد ⚠️")
                 continue
             key = history.key(p["id"], v["variant"])
@@ -299,7 +306,7 @@ def build_telegram_messages(doc, group_by="brand", changes=None, removed=None, s
             base = _color_prefix_swap(_line(v, key, changes, None, show_links, noisy), v)
             lines.append(base)
             if changes is None:
-                lines.extend(_v2_extra_lines(v))
+                lines.extend(_v2_extra_lines(v, show_missing_sources))
         if lines:
             n_lines += len(lines)
             blocks.append((p["brand"], f"📱 {p.get('title') or p.get('label') or p['model']}\n" + "\n".join(lines)))

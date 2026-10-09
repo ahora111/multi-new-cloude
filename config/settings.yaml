@@ -35,3 +35,5 @@ telegram_alert_state_file: data/telegram_alert_state.json
 telegram_report_times: []           # مثال: ["09:00", "21:00"] به وقت تهران؛ خالی = هر چرخه
 telegram_report_grace_minutes: 20
 telegram_report_state_file: data/telegram_report_state.json
+telegram_show_missing_sources: false # ساکت: فهرست «قیمت دریافت نشد/منبع ناموفق» به تفکیک رنگ در تلگرام نوشته نمی‌شود (جزئیات کامل در فایل‌های خروجی می‌ماند)
+telegram_truncation_notice: false    # ساکت: پیام «N پیام دیگر به‌خاطر سقف ارسال نشد» فرستاده نمی‌شود
