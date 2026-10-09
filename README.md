@@ -116,10 +116,6 @@ Run the Digikala B2B parser tests:
 ```bash
 pytest -q tests/test_digikala_b2b.py
 ```
-<<<<<<< HEAD
-=======
-<<<<<<< HEAD
->>>>>>> origin/main
 
 ## V2-HOURLY-DELIVERY-PRICE-ALERTS
 
@@ -160,8 +156,3 @@ python -m pricecompare --config-dir config.real watch --cycles 4
 نمایش داده می‌شوند؛ برای هر رنگ قیمت همه‌ی منابع کنار هم می‌آید و منبعی که قیمت رنگی را ندارد
 با «قیمت دریافت نشد / منبع ناموفق» پنهان نمی‌شود. محصولات در همه‌ی خروجی‌ها (JSON، CSV، MD، تلگرام)
 بر اساس قیمت مرجع از **گران‌ترین به ارزان‌ترین** مرتب می‌شوند و محصولات بدون قیمت معتبر بخش جدا دارند.
-<<<<<<< HEAD
-=======
-=======
->>>>>>> f17e6a59f11b4c55f7e0c722244e8621d106d9dc
->>>>>>> origin/main

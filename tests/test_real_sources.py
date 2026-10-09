@@ -164,7 +164,17 @@ def test_both_real_sources_together_pick_the_cheapest(tmp_path, monkeypatch):
     cfg, base = make_project(tmp_path, sources=srcs, watchlist=wl)
     res = run(cfg, base_dir=base)
     assert res.exit_code == 0
-    by = {p["id"]: p["variants"] for p in res.doc["products"]}
-    blue = next(v for v in by["i"] if v["variant"] == "blue")
+    by = {p["id"]: {v["variant"]: v for v in p["variants"]} for p in res.doc["products"]}
+    blue = by["i"]["blue"]
     assert blue["winner"]["source"] == "eways" and blue["winner"]["price_toman"] == 64_100_000   # 641M rial < 64.5M toman
-    assert by["a"][0]["winner"]["price_toman"] == 9_750_000                                       # 97.5M rial < 9.8M toman
+    # V2 §6: an offer with NO colour info is NEVER merged into a named colour variant
+    # (unconfirmed colour equivalence must not be fabricated), so the Galaxy has two variants:
+    assert set(by["a"]) == {"بدون رنگ/مشخصه", "black"}
+    assert by["a"]["بدون رنگ/مشخصه"]["winner"]["source"] == "eways" \
+        and by["a"]["بدون رنگ/مشخصه"]["winner"]["price_toman"] == 9_750_000                       # 97.5M rial < 9.8M toman
+    assert by["a"]["black"]["winner"]["source"] == "hamrahtel" \
+        and by["a"]["black"]["winner"]["price_toman"] == 9_800_000
+    # product-level cheapest across colours is still the converted rial price (V2 §4 reference price)
+    from pricecompare.pricing import reference_price
+    prod_a = next(p for p in res.doc["products"] if p["id"] == "a")
+    assert reference_price(prod_a) == 9_750_000
