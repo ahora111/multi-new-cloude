@@ -2,14 +2,18 @@ import json
 from pathlib import Path
 
 
+<<<<<<< HEAD
 def _num(v):
     return int(v) if isinstance(v, float) and v.is_integer() else v
 
 
+=======
+>>>>>>> f17e6a59f11b4c55f7e0c722244e8621d106d9dc
 def key(product_id, variant):
     return f"{product_id}|{variant}"
 
 
+<<<<<<< HEAD
 def alert_key(entry) -> str:
     """Dedup identity of an alert: same (type, product, colour, vendor) at the same price = no repost."""
     return f'{entry.get("type")}|{entry.get("product_id")}|{entry.get("variant")}|{entry.get("source")}'
@@ -35,16 +39,26 @@ def last_record(path) -> dict | None:
     p = Path(path)
     if not p.exists():
         return None
+=======
+def last_prices(path) -> dict:
+    p = Path(path)
+    if not p.exists():
+        return {}
+>>>>>>> f17e6a59f11b4c55f7e0c722244e8621d106d9dc
     last = None
     for line in p.read_text(encoding="utf-8").splitlines():
         if line.strip():
             last = line
+<<<<<<< HEAD
     return json.loads(last) if last else None
 
 
 def last_prices(path) -> dict:
     rec = last_record(path)
     return (rec or {}).get("prices") or {}
+=======
+    return json.loads(last)["prices"] if last else {}
+>>>>>>> f17e6a59f11b4c55f7e0c722244e8621d106d9dc
 
 
 def price_changes(products, previous, alert_pct):
@@ -63,6 +77,7 @@ def price_changes(products, previous, alert_pct):
     return alerts
 
 
+<<<<<<< HEAD
 def detect_changes(products, prev_record, drop_pct: float, market_pct: float, now_iso: str,
                    max_age_hours: int = 48) -> list:
     """Per-product / per-colour / per-VENDOR price tracking (V2).
@@ -159,6 +174,14 @@ def append_alerts(path, changes, run_at) -> int:
         for r in rows:
             f.write(json.dumps({"run_at": run_at, **r}, ensure_ascii=False) + "\n")
     return len(rows)
+=======
+def append(path, products, run_at):
+    prices = {key(p["id"], v["variant"]): {"price": v["winner"]["price_toman"], "source": v["winner"]["source"]}
+              for p in products for v in p["variants"] if v["winner"]}
+    Path(path).parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "a", encoding="utf-8") as f:
+        f.write(json.dumps({"run_at": run_at, "prices": prices}, ensure_ascii=False) + "\n")
+>>>>>>> f17e6a59f11b4c55f7e0c722244e8621d106d9dc
 
 
 def load_state(path) -> dict:
@@ -196,6 +219,7 @@ def changed_keys(current: dict, last_sent: dict, min_pct: float):
 def significant_change(current: dict, last_sent: dict, min_pct: float) -> bool:
     changed, removed = changed_keys(current, last_sent, min_pct)
     return bool(changed or removed)
+<<<<<<< HEAD
 
 
 def unsent_alerts(alerts: list, alert_state: dict) -> list:
@@ -206,3 +230,5 @@ def unsent_alerts(alerts: list, alert_state: dict) -> list:
         if not prev or prev.get("price") != a.get("new_price"):
             out.append(a)
     return out
+=======
+>>>>>>> f17e6a59f11b4c55f7e0c722244e8621d106d9dc

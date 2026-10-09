@@ -182,9 +182,13 @@ def test_overrides_force_match_and_force_split(tmp_path):
         "force_split": [{"source": "shop_c", "source_offer_id": "c1"}],
         "force_match": []}), encoding="utf-8")
     res = run(cfg, base_dir=base)
+<<<<<<< HEAD
     # V2: products are sorted most-expensive-first, so look the product up by id (order-independent)
     prod = next(p for p in res.doc["products"] if p["id"] == "iphone17-256")
     blue = next(v for v in prod["variants"] if v["variant"] == "blue")
+=======
+    blue = next(v for v in res.doc["products"][0]["variants"] if v["variant"] == "blue")
+>>>>>>> f17e6a59f11b4c55f7e0c722244e8621d106d9dc
     assert all(o["source"] != "shop_c" for o in blue["offers"])
 
 

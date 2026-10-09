@@ -4,7 +4,10 @@ import subprocess
 from conftest_helpers import ROOT
 
 REQUIRED = ["pricecompare/data/dictionaries.yaml", "config/sources.yaml", "config/watchlist.yaml", "config/settings.yaml",
+<<<<<<< HEAD
             "config/delivery.yaml", "config.real/delivery.yaml",
+=======
+>>>>>>> f17e6a59f11b4c55f7e0c722244e8621d106d9dc
             "fixtures/shop_a.json", "fixtures/shop_b.html", "fixtures/shop_c.csv", "config.real/sources.yaml",
             "pricecompare/sources/vendor/eways_legacy.py", "pricecompare/sources/vendor/hamrahtel_scraper.py"]
 
