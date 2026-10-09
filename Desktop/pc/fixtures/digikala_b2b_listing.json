@@ -1,0 +1,178 @@
+{
+ "data": [
+  {
+   "id": 31765,
+   "type": "configurable",
+   "name": "گوشی موبایل اپل مدل iPhone 17 Pro Max ZAA تک سیم کارت + eSim ظرفیت 256 گیگابایت و رم 12 گیگابایت - نات اکتیو ",
+   "short_title": "Apple iPhone 17 Pro Max ZAA - 1 SIM | + eSim Storage 256GB - RAM 12GB  - Not Activated",
+   "price": 5199990000,
+   "base_image": {
+    "small_image_url": "https://dkstatics-public.digikala.com/digikala-products/ec57ce03f2a92834058f502174b1a2aeffc9a580_1759666637.jpg?x-oss-process=image/resize,m_lfit,h_100,w_100/format,webp/quality,q_60",
+    "medium_image_url": "https://dkstatics-public.digikala.com/digikala-products/ec57ce03f2a92834058f502174b1a2aeffc9a580_1759666637.jpg?x-oss-process=image/resize,m_lfit,h_300,w_300/format,webp/quality,q_80",
+    "large_image_url": "https://dkstatics-public.digikala.com/digikala-products/ec57ce03f2a92834058f502174b1a2aeffc9a580_1759666637.jpg?x-oss-process=image/resize,m_lfit,h_800,w_800/format,webp/quality,q_90",
+    "original_image_url": "https://dkstatics-public.digikala.com/digikala-products/ec57ce03f2a92834058f502174b1a2aeffc9a580_1759666637.jpg"
+   },
+   "loyalty_points": null,
+   "colors": [
+    {
+     "id": 896,
+     "admin_name": "آبی تیره"
+    }
+   ]
+  },
+  {
+   "id": 44258,
+   "type": "configurable",
+   "name": "گوشی موبایل شیائومی مدل Redmi Note 15 Pro 4G دو سیم کارت ظرفیت 256 گیگابایت و رم 8 گیگابایت",
+   "short_title": "Xiaomi Redmi Note 15 Pro 4G - 2 SIM | Storage 256GB - RAM 8GB",
+   "price": 1079990000,
+   "base_image": {
+    "small_image_url": "https://dkstatics-public.digikala.com/digikala-products/1d91fb985bb0c4da547185ee1b8fb69471baf037_1767094054.jpg?x-oss-process=image/resize,m_lfit,h_100,w_100/format,webp/quality,q_60",
+    "medium_image_url": "https://dkstatics-public.digikala.com/digikala-products/1d91fb985bb0c4da547185ee1b8fb69471baf037_1767094054.jpg?x-oss-process=image/resize,m_lfit,h_300,w_300/format,webp/quality,q_80",
+    "large_image_url": "https://dkstatics-public.digikala.com/digikala-products/1d91fb985bb0c4da547185ee1b8fb69471baf037_1767094054.jpg?x-oss-process=image/resize,m_lfit,h_800,w_800/format,webp/quality,q_90",
+    "original_image_url": "https://dkstatics-public.digikala.com/digikala-products/1d91fb985bb0c4da547185ee1b8fb69471baf037_1767094054.jpg"
+   },
+   "loyalty_points": null,
+   "colors": [
+    {
+     "id": 830,
+     "admin_name": "مشکی"
+    },
+    {
+     "id": 852,
+     "admin_name": "آبی"
+    }
+   ]
+  },
+  {
+   "id": 14428,
+   "type": "configurable",
+   "name": "گوشی موبایل سامسونگ مدل Galaxy A36 دو سیم کارت ظرفیت 256 گیگابایت و رم 8 گیگابایت - ویتنام",
+   "short_title": "Samsung Galaxy A36 - 2 SIM | Storage 256GB - 8GB RAM  - Vietnam",
+   "price": 999990000,
+   "base_image": {
+    "small_image_url": "https://dkstatics-public.digikala.com/digikala-products/dd4c84914d52000cdc3ce54e1ac758ff94f58311_1741527697.jpg?x-oss-process=image/resize,m_lfit,h_100,w_100/format,webp/quality,q_60",
+    "medium_image_url": "https://dkstatics-public.digikala.com/digikala-products/dd4c84914d52000cdc3ce54e1ac758ff94f58311_1741527697.jpg?x-oss-process=image/resize,m_lfit,h_300,w_300/format,webp/quality,q_80",
+    "large_image_url": "https://dkstatics-public.digikala.com/digikala-products/dd4c84914d52000cdc3ce54e1ac758ff94f58311_1741527697.jpg?x-oss-process=image/resize,m_lfit,h_800,w_800/format,webp/quality,q_90",
+    "original_image_url": "https://dkstatics-public.digikala.com/digikala-products/dd4c84914d52000cdc3ce54e1ac758ff94f58311_1741527697.jpg"
+   },
+   "loyalty_points": null,
+   "colors": [
+    {
+     "id": 830,
+     "admin_name": "مشکی"
+    },
+    {
+     "id": 839,
+     "admin_name": "سفید"
+    },
+    {
+     "id": 889,
+     "admin_name": "زرد لیمویی"
+    }
+   ]
+  },
+  {
+   "id": 69001,
+   "type": "configurable",
+   "name": "گوشی موبایل سامسونگ مدل Galaxy A27 دو سیم کارت ظرفیت 128 گیگابایت و رم 6 گیگابایت - ویتنام",
+   "short_title": "Samsung Galaxy A27 - 2 SIM | Storage 128GB - RAM 6GB  - Vietnam",
+   "price": 0,
+   "base_image": {
+    "small_image_url": "https://dkstatics-public.digikala.com/digikala-products/9907e96da3d3ee2e25e492c04dc44cf60f5784b9_1782734654.jpg?x-oss-process=image/resize,m_lfit,h_100,w_100/format,webp/quality,q_60",
+    "medium_image_url": "https://dkstatics-public.digikala.com/digikala-products/9907e96da3d3ee2e25e492c04dc44cf60f5784b9_1782734654.jpg?x-oss-process=image/resize,m_lfit,h_300,w_300/format,webp/quality,q_80",
+    "large_image_url": "https://dkstatics-public.digikala.com/digikala-products/9907e96da3d3ee2e25e492c04dc44cf60f5784b9_1782734654.jpg?x-oss-process=image/resize,m_lfit,h_800,w_800/format,webp/quality,q_90",
+    "original_image_url": "https://dkstatics-public.digikala.com/digikala-products/9907e96da3d3ee2e25e492c04dc44cf60f5784b9_1782734654.jpg"
+   },
+   "loyalty_points": null,
+   "colors": []
+  },
+  {
+   "id": 207697,
+   "type": "configurable",
+   "name": "گوشی موبایل ناتینگ مدل Phone 2a Community Edition دو سیم کارت ظرفیت 256 گیگابایت رم 12 گیگابایت  ",
+   "short_title": "Nothing Phone 2a Community Edition - 2 SIM | 256GB - 12GB RAM",
+   "price": 2297600000,
+   "base_image": {
+    "small_image_url": "https://dkstatics-public.digikala.com/digikala-products/c0a00b022d7d3b0f9aa9b6735a2675965cb74236_1786440313.jpg?x-oss-process=image/resize,m_lfit,h_100,w_100/format,webp/quality,q_60",
+    "medium_image_url": "https://dkstatics-public.digikala.com/digikala-products/c0a00b022d7d3b0f9aa9b6735a2675965cb74236_1786440313.jpg?x-oss-process=image/resize,m_lfit,h_300,w_300/format,webp/quality,q_80",
+    "large_image_url": "https://dkstatics-public.digikala.com/digikala-products/c0a00b022d7d3b0f9aa9b6735a2675965cb74236_1786440313.jpg?x-oss-process=image/resize,m_lfit,h_800,w_800/format,webp/quality,q_90",
+    "original_image_url": "https://dkstatics-public.digikala.com/digikala-products/c0a00b022d7d3b0f9aa9b6735a2675965cb74236_1786440313.jpg"
+   },
+   "loyalty_points": null,
+   "special_price": 2297600000,
+   "formatted_special_price": "﷼2,297,600,000",
+   "regular_price": 2300000000,
+   "formatted_regular_price": null,
+   "colors": [
+    {
+     "id": 830,
+     "admin_name": "مشکی"
+    }
+   ]
+  },
+  {
+   "id": 14430,
+   "type": "configurable",
+   "name": "گوشی موبایل سامسونگ مدل Galaxy A36 دو سیم کارت ظرفیت 128 گیگابایت و رم 8 گیگابایت - ویتنام",
+   "short_title": "Samsung Galaxy A36 - 2 SIM | Storage 128GB - 8GB RAM  - Vietnam",
+   "price": 909990000,
+   "base_image": {
+    "small_image_url": "https://dkstatics-public.digikala.com/digikala-products/b6836d75b20cdc4df1cc4a56251a481a96828ff9_1741527405.jpg?x-oss-process=image/resize,m_lfit,h_100,w_100/format,webp/quality,q_60",
+    "medium_image_url": "https://dkstatics-public.digikala.com/digikala-products/b6836d75b20cdc4df1cc4a56251a481a96828ff9_1741527405.jpg?x-oss-process=image/resize,m_lfit,h_300,w_300/format,webp/quality,q_80",
+    "large_image_url": "https://dkstatics-public.digikala.com/digikala-products/b6836d75b20cdc4df1cc4a56251a481a96828ff9_1741527405.jpg?x-oss-process=image/resize,m_lfit,h_800,w_800/format,webp/quality,q_90",
+    "original_image_url": "https://dkstatics-public.digikala.com/digikala-products/b6836d75b20cdc4df1cc4a56251a481a96828ff9_1741527405.jpg"
+   },
+   "loyalty_points": null,
+   "colors": [
+    {
+     "id": 830,
+     "admin_name": "مشکی"
+    },
+    {
+     "id": 839,
+     "admin_name": "سفید"
+    },
+    {
+     "id": 889,
+     "admin_name": "زرد لیمویی"
+    }
+   ]
+  }
+ ],
+ "links": {
+  "first": "https://b2b.digikala.com/api/v1/products?category_id=3&page=1&sort=price-desc",
+  "last": "https://b2b.digikala.com/api/v1/products?category_id=3&page=62&sort=price-desc",
+  "prev": null,
+  "next": "http://b2b.digikala.com/api/v1/products?category_id=3&page=2&sort=price-desc"
+ },
+ "meta": {
+  "current_page": 1,
+  "from": 1,
+  "last_page": 62,
+  "links": [
+   {
+    "url": "http://b2b.digikala.com/api/v1/products?category_id=3&page=1&sort=price-desc",
+    "label": "1",
+    "page": 1,
+    "active": true
+   },
+   {
+    "url": "http://b2b.digikala.com/api/v1/products?category_id=3&page=2&sort=price-desc",
+    "label": "2",
+    "page": 2,
+    "active": false
+   },
+   {
+    "url": "http://b2b.digikala.com/api/v1/products?category_id=3&page=2&sort=price-desc",
+    "label": "Next &raquo;",
+    "page": 2,
+    "active": false
+   }
+  ],
+  "path": "http://b2b.digikala.com/api/v1/products",
+  "per_page": 12,
+  "to": 12,
+  "total": 740
+ }
+}

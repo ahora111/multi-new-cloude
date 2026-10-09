@@ -1,0 +1,86 @@
+{
+ "data": {
+  "products": [
+   {
+    "id": "a1",
+    "name": "گوشی موبایل اپل مدل iPhone 17 ظرفیت 256 گیگابایت - آبی",
+    "price": 64500000,
+    "available": true,
+    "link": "/product/a1",
+    "color": "آبی"
+   },
+   {
+    "id": "a2",
+    "name": "Apple iPhone 17 256GB Black CH/A",
+    "price": 64900000,
+    "available": true,
+    "link": "/product/a2",
+    "color": ""
+   },
+   {
+    "id": "a3",
+    "name": "Apple iPhone 17 Pro 256GB Silver CH/A",
+    "price": 89900000,
+    "available": true,
+    "link": "/product/a3",
+    "color": ""
+   },
+   {
+    "id": "a4",
+    "name": "Apple iPhone 17 Pro Max 256GB Silver",
+    "price": 99000000,
+    "available": true,
+    "link": "/product/a4",
+    "color": ""
+   },
+   {
+    "id": "a5",
+    "name": "Apple iPhone 17e 256GB Black",
+    "price": 45000000,
+    "available": true,
+    "link": "/product/a5",
+    "color": ""
+   },
+   {
+    "id": "a6",
+    "name": "Samsung Galaxy A17 4G 128GB RAM 4GB مشکی",
+    "price": 9800000,
+    "available": true,
+    "link": "/product/a6",
+    "color": ""
+   },
+   {
+    "id": "a7",
+    "name": "Samsung Galaxy A17 5G 128GB RAM 4GB Black",
+    "price": 11900000,
+    "available": true,
+    "link": "/product/a7",
+    "color": ""
+   },
+   {
+    "id": "a8",
+    "name": "Redmi Note 14 256GB RAM 8GB Black",
+    "price": 13700000,
+    "available": false,
+    "link": "/product/a8",
+    "color": ""
+   },
+   {
+    "id": "a9",
+    "name": "Redmi Note 14 Pro 256GB RAM 8GB Black",
+    "price": 16900000,
+    "available": true,
+    "link": "/product/a9",
+    "color": ""
+   },
+   {
+    "id": "a10",
+    "name": "Redmi Note 14 256GB RAM 8GB Gray",
+    "price": 13900000,
+    "available": true,
+    "link": "/product/a10",
+    "color": ""
+   }
+  ]
+ }
+}

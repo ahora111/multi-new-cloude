@@ -1,0 +1,42 @@
+{
+  "run_at": "2026-09-19T06:40:12.738424+00:00",
+  "summary": {
+    "sources_ok": 3,
+    "sources_failed": 0,
+    "sources_degraded": 0,
+    "offers_total": 23,
+    "products_total": 5,
+    "products_found": 4,
+    "products_not_found": 1,
+    "review_items": 0,
+    "suspect_offers": 1,
+    "needs_review_variants": 0
+  },
+  "sources": [
+    {
+      "name": "shop_a",
+      "status": "ok",
+      "count": 10,
+      "seconds": 0.0,
+      "error": null,
+      "currency_unit": "toman"
+    },
+    {
+      "name": "shop_b",
+      "status": "ok",
+      "count": 7,
+      "seconds": 0.0,
+      "error": null,
+      "currency_unit": "rial"
+    },
+    {
+      "name": "shop_c",
+      "status": "ok",
+      "count": 6,
+      "seconds": 0.0,
+      "error": null,
+      "currency_unit": "toman"
+    }
+  ],
+  "warnings": []
+}
